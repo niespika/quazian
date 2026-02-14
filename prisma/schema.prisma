@@ -1,0 +1,78 @@
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String?
+  role      Role
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  studentProfile StudentProfile?
+  classes        Class[]         @relation("ProfClasses")
+  attempts       Attempt[]
+}
+
+model StudentProfile {
+  id      String @id @default(uuid())
+  user    User   @relation(fields: [userId], references: [id])
+  userId  String @unique
+  name    String
+  class   Class  @relation(fields: [classId], references: [id])
+  classId String
+}
+
+model Class {
+  id     String @id @default(uuid())
+  name   String
+  prof   User   @relation("ProfClasses", fields: [profId], references: [id])
+  profId String
+
+  students StudentProfile[]
+  quizzes  Quiz[]
+}
+
+model Concept {
+  id            String   @id @default(uuid())
+  subject       String
+  title         String
+  correctAnswer String
+  distractors   String // JSON string (liste)
+  dateSeen      DateTime
+  createdAt     DateTime @default(now())
+}
+
+model Quiz {
+  id        String    @id @default(uuid())
+  class     Class     @relation(fields: [classId], references: [id])
+  classId   String
+  createdAt DateTime  @default(now())
+  attempts  Attempt[]
+}
+
+model Attempt {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  quiz      Quiz     @relation(fields: [quizId], references: [id])
+  quizId    String
+  score     Float
+  createdAt DateTime @default(now())
+}
+
+enum Role {
+  PROF
+  STUDENT
+}
