@@ -3,6 +3,7 @@ import { Role } from "@prisma/client";
 import { requireRole } from "@/lib/auth";
 import { ProfessorStudentRow, getProfessorClasses, getProfessorStudents } from "@/lib/prof-students";
 import { ResendInvitationButton } from "./ResendInvitationButton";
+import { ImportCsvSection } from "./ImportCsvSection";
 
 type PageProps = {
   searchParams: Promise<{
@@ -46,6 +47,8 @@ export function ProfStudentsPageContent({
           </button>
         </div>
       </form>
+
+      <ImportCsvSection />
 
       <section>
         <table className="w-full border-collapse text-sm">

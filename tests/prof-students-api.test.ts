@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { NextRequest } from "next/server";
 import { buildStudentsResponse } from "@/app/api/prof/students/route";
 import { buildResendInvitationResponse } from "@/app/api/prof/students/[studentId]/resend/route";
+import { buildImportStudentsResponse } from "@/app/api/prof/students/import/route";
 
 test("GET /api/prof/students returns unauthorized without session", async () => {
   const req = new NextRequest("http://localhost/api/prof/students");
@@ -57,4 +58,32 @@ test("POST /api/prof/students/:id/resend returns link", async () => {
   assert.equal(response.status, 200);
   const body = await response.json();
   assert.equal(body.invitationLink, "/invite/new-token");
+});
+
+test("POST /api/prof/students/import validates file and returns summary", async () => {
+  const formData = new FormData();
+  formData.append("file", new File(["name,class,email\nAlice,4A,alice@example.com"], "students.csv", { type: "text/csv" }));
+
+  const req = new Request("http://localhost/api/prof/students/import", {
+    method: "POST",
+    body: formData,
+  });
+
+  const response = await buildImportStudentsResponse(req, { userId: "prof-1" }, {
+    importStudents: async (profId, csvText) => {
+      assert.equal(profId, "prof-1");
+      assert.match(csvText, /Alice/);
+      return {
+        created: 1,
+        updated: 0,
+        invalidRows: [],
+        invitationLinks: [{ email: "alice@example.com", link: "/invite/token" }],
+      };
+    },
+  });
+
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.created, 1);
+  assert.equal(body.invitationLinks[0].email, "alice@example.com");
 });
