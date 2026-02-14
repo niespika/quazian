@@ -43,6 +43,13 @@ export function scoreToNoteOn20(score: number | null | undefined): number | null
   return Number(normalized.toFixed(2));
 }
 
+
+export function buildStudentConceptMasteryWhere(userId: string, classId: string) {
+  return {
+    userId,
+    concept: { classId },
+  };
+}
 function sortConcepts(concepts: MasteryConcept[], sort: DashboardSort) {
   return [...concepts].sort((a, b) => {
     if (sort === "title") {

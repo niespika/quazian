@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import {
   buildConceptLists,
+  buildStudentConceptMasteryWhere,
   normalizeFilter,
   normalizeSort,
   scoreToNoteOn20,
@@ -142,6 +143,15 @@ export default async function StudentDashboardPage({ searchParams }: StudentDash
   const sort = normalizeSort(params?.sort);
   const filter = normalizeFilter(params?.filter);
 
+  const studentProfile = await prisma.studentProfile.findUnique({
+    where: { userId: session.userId },
+    select: { classId: true },
+  });
+
+  if (!studentProfile) {
+    return null;
+  }
+
   const [latestAttempt, scoreAggregate, masteryRows] = await Promise.all([
     prisma.attempt.findFirst({
       where: { userId: session.userId },
@@ -153,7 +163,7 @@ export default async function StudentDashboardPage({ searchParams }: StudentDash
       _avg: { score: true },
     }),
     prisma.conceptMastery.findMany({
-      where: { userId: session.userId },
+      where: buildStudentConceptMasteryWhere(session.userId, studentProfile.classId),
       include: {
         concept: {
           select: {
