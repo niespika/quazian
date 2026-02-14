@@ -1,36 +1,62 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Quazian
 
-## Getting Started
+Authentication + invitation flow for Professors and Students (Next.js App Router + Prisma SQLite).
 
-First, run the development server:
+## Features added
+
+- Professor login (`/prof/login`) with email/password.
+- Professor student dashboard (`/prof/students`) with CSV upload (`name,class,email`) and invitation links.
+- Student invitation activation (`/invite/[token]`) to set password and activate account.
+- Student login (`/student/login`).
+- Single-use invitation tokens stored in DB.
+- Password hashing with bcrypt.
+
+## Local run
+
+1. Install deps:
+
+```bash
+npm install
+```
+
+2. Create `.env`:
+
+```bash
+DATABASE_URL="file:./dev.db"
+SESSION_SECRET="replace-with-long-random-secret"
+```
+
+3. Apply migrations + generate client:
+
+```bash
+npm run prisma:migrate
+npm run prisma:generate
+```
+
+4. Seed one professor account:
+
+```bash
+npm run db:seed
+```
+
+Seeded credentials:
+- `prof@example.com`
+- `prof12345`
+
+5. Start app:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## CSV format
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Upload a CSV with this header in `/prof/students`:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```csv
+name,class,email
+Alice Martin,4A,alice@example.com
+Bob Durant,4A,bob@example.com
+```
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Importing creates/updates students in `INVITED` state and regenerates a single active invitation token per student.
