@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { ProfStudentsPageContent } from "@/app/prof/students/page";
-import { ImportCsvSection } from "@/app/prof/students/ImportCsvSection";
+import { ProfStudentsPageContent } from "@/app/prof/(protected)/students/page";
+import { ImportCsvSection } from "@/app/prof/(protected)/students/ImportCsvSection";
 
 test("Students page renders table rows and invited action", () => {
   const html = renderToStaticMarkup(
