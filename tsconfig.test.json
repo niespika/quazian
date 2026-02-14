@@ -1,0 +1,20 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": ".test-dist",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "target": "es2022",
+    "baseUrl": "."
+  },
+  "include": [
+    "tests/**/*.ts",
+    "tests/**/*.tsx",
+    "app/api/prof/students/route.ts",
+    "app/api/prof/students/[studentId]/resend/route.ts",
+    "app/prof/students/page.tsx",
+    "app/prof/students/ResendInvitationButton.tsx",
+    "lib/prof-students.ts"
+  ]
+}

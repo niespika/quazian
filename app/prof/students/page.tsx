@@ -1,118 +1,77 @@
-"use client";
+import { redirect } from "next/navigation";
+import { Role } from "@prisma/client";
+import { requireRole } from "@/lib/auth";
+import { ProfessorStudentRow, getProfessorClasses, getProfessorStudents } from "@/lib/prof-students";
+import { ResendInvitationButton } from "./ResendInvitationButton";
 
-import { FormEvent, useEffect, useState } from "react";
-
-type Student = {
-  id: string;
-  name: string;
-  email: string;
-  className: string;
-  status: string;
-  invitationLink: string | null;
+type PageProps = {
+  searchParams: Promise<{
+    classId?: string;
+  }>;
 };
 
-export default function ProfStudentsPage() {
-  const [students, setStudents] = useState<Student[]>([]);
-  const [links, setLinks] = useState<Array<{ name: string; email: string; link: string }>>([]);
-  const [error, setError] = useState<string | null>(null);
+type ClassOption = {
+  id: string;
+  name: string;
+};
 
-  async function loadStudents() {
-    const res = await fetch("/api/prof/students");
-    if (!res.ok) {
-      setError("Unauthorized. Please log in as professor.");
-      return;
-    }
-    const data = await res.json();
-    setStudents(data.students);
-  }
-
-  useEffect(() => {
-    let active = true;
-
-    fetch("/api/prof/students")
-      .then(async (res) => {
-        if (!active) return;
-        if (!res.ok) {
-          setError("Unauthorized. Please log in as professor.");
-          return;
-        }
-        const data = await res.json();
-        if (active) {
-          setStudents(data.students);
-        }
-      })
-      .catch(() => {
-        if (active) {
-          setError("Could not load students");
-        }
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  async function onUpload(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setError(null);
-    const form = new FormData(e.currentTarget);
-    const res = await fetch("/api/prof/students", { method: "POST", body: form });
-    if (!res.ok) {
-      const data = await res.json();
-      setError(data.error ?? "Upload failed");
-      return;
-    }
-
-    const data = await res.json();
-    setLinks(data.links);
-    await loadStudents();
-    e.currentTarget.reset();
-  }
-
+export function ProfStudentsPageContent({
+  classId,
+  classes,
+  students,
+}: {
+  classId?: string;
+  classes: ClassOption[];
+  students: ProfessorStudentRow[];
+}) {
   return (
-    <main className="mx-auto max-w-4xl p-8 space-y-8">
-      <h1 className="text-2xl font-bold">Students import & invitations</h1>
-      <form onSubmit={onUpload} className="space-y-3 border rounded p-4">
-        <p className="text-sm text-gray-600">Upload CSV with header: name,class,email</p>
-        <input type="file" name="file" accept=".csv,text/csv" required />
-        <button className="bg-black text-white rounded px-4 py-2">Import CSV</button>
+    <main className="mx-auto max-w-5xl space-y-6 p-8">
+      <h1 className="text-2xl font-bold">Students Management</h1>
+
+      <form className="rounded border p-4">
+        <label htmlFor="classId" className="mb-2 block text-sm font-medium">
+          Filter by class
+        </label>
+        <div className="flex items-center gap-2">
+          <select id="classId" name="classId" defaultValue={classId ?? ""} className="rounded border p-2 text-sm">
+            <option value="">All classes</option>
+            {classes.map((classItem) => (
+              <option key={classItem.id} value={classItem.id}>
+                {classItem.name}
+              </option>
+            ))}
+          </select>
+          <button type="submit" className="rounded bg-black px-4 py-2 text-sm text-white">
+            Apply
+          </button>
+        </div>
       </form>
 
-      {error && <p className="text-red-600">{error}</p>}
-
-      {links.length > 0 && (
-        <section className="space-y-2">
-          <h2 className="font-semibold">New invitation links</h2>
-          <ul className="space-y-1 text-sm">
-            {links.map((item) => (
-              <li key={item.email}>
-                {item.name} ({item.email}): <code>{item.link}</code>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
       <section>
-        <h2 className="font-semibold mb-2">Students</h2>
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr className="border-b">
-              <th className="text-left p-2">Name</th>
-              <th className="text-left p-2">Class</th>
-              <th className="text-left p-2">Email</th>
-              <th className="text-left p-2">Status</th>
-              <th className="text-left p-2">Invitation link</th>
+              <th className="p-2 text-left">Name</th>
+              <th className="p-2 text-left">Class</th>
+              <th className="p-2 text-left">Email</th>
+              <th className="p-2 text-left">Status</th>
+              <th className="p-2 text-left">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {students.map((s) => (
-              <tr key={s.id} className="border-b">
-                <td className="p-2">{s.name}</td>
-                <td className="p-2">{s.className}</td>
-                <td className="p-2">{s.email}</td>
-                <td className="p-2">{s.status}</td>
-                <td className="p-2">{s.invitationLink ? <code>{s.invitationLink}</code> : "-"}</td>
+            {students.map((student) => (
+              <tr key={student.id} className="border-b align-top">
+                <td className="p-2">{student.name}</td>
+                <td className="p-2">{student.className}</td>
+                <td className="p-2">{student.email}</td>
+                <td className="p-2">{student.status}</td>
+                <td className="p-2">
+                  {student.status === "invited" ? (
+                    <ResendInvitationButton studentId={student.id} />
+                  ) : (
+                    <span className="text-gray-500">-</span>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -120,4 +79,19 @@ export default function ProfStudentsPage() {
       </section>
     </main>
   );
+}
+
+export default async function ProfStudentsPage({ searchParams }: PageProps) {
+  const session = await requireRole(Role.PROF);
+  if (!session) {
+    redirect("/prof/login");
+  }
+
+  const { classId } = await searchParams;
+  const [classes, students] = await Promise.all([
+    getProfessorClasses(session.userId),
+    getProfessorStudents(session.userId, classId),
+  ]);
+
+  return <ProfStudentsPageContent classId={classId} classes={classes} students={students} />;
 }
