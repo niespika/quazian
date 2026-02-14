@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildConceptLists, scoreToNoteOn20 } from "@/lib/student-dashboard";
+import { buildConceptLists, buildStudentConceptMasteryWhere, scoreToNoteOn20 } from "@/lib/student-dashboard";
 
 const concepts = [
   { id: "1", subject: "PHILO", title: "Stoicism", pMastery: 0.9 },
@@ -39,4 +39,12 @@ test("buildConceptLists applies sort and filter options", () => {
   assert.equal(toWorkOnOnly.mastered.length, 0);
   assert.equal(toWorkOnOnly.toWorkOn[0]?.concepts[0]?.title, "Photosynthesis");
   assert.equal(toWorkOnOnly.toWorkOn[0]?.concepts[1]?.title, "Cellular Respiration");
+});
+
+
+test("buildStudentConceptMasteryWhere scopes concepts to the student class", () => {
+  assert.deepEqual(buildStudentConceptMasteryWhere("student-1", "class-9"), {
+    userId: "student-1",
+    concept: { classId: "class-9" },
+  });
 });

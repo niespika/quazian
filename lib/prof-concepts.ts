@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 export const MIN_DISTRACTORS = 9;
 
 export type ConceptInput = {
+  classId: string;
   subject: string;
   title: string;
   correctAnswer: string;
@@ -15,6 +16,7 @@ export type ConceptValidationResult =
       success: true;
       data: {
         subject: string;
+        classId: string;
         title: string;
         correctAnswer: string;
         distractors: string[];
@@ -57,12 +59,13 @@ export function validateConceptPayload(payload: unknown): ConceptValidationResul
   }
 
   const subject = normalizeString(payload.subject);
+  const classId = normalizeString(payload.classId);
   const title = normalizeString(payload.title);
   const correctAnswer = normalizeString(payload.correctAnswer);
   const distractors = parseDistractors(payload.distractors);
   const dateSeenInput = normalizeString(payload.dateSeen);
 
-  if (!subject || !title || !correctAnswer || !dateSeenInput) {
+  if (!classId || !subject || !title || !correctAnswer || !dateSeenInput) {
     return { success: false, error: "Missing required fields." };
   }
 
@@ -79,6 +82,7 @@ export function validateConceptPayload(payload: unknown): ConceptValidationResul
     success: true,
     data: {
       subject,
+      classId,
       title,
       correctAnswer,
       distractors,
@@ -88,23 +92,36 @@ export function validateConceptPayload(payload: unknown): ConceptValidationResul
 }
 
 export async function createProfessorConcept(input: {
+  profId: string;
+  classId: string;
   subject: string;
   title: string;
   correctAnswer: string;
   distractors: string[];
   dateSeen: Date;
 }) {
+  const ownsClass = await prisma.class.count({ where: { id: input.classId, profId: input.profId } });
+  if (ownsClass === 0) {
+    throw new Error("FORBIDDEN_CLASS");
+  }
+
   return prisma.concept.create({
     data: {
-      ...input,
+      classId: input.classId,
+      subject: input.subject,
+      title: input.title,
+      correctAnswer: input.correctAnswer,
+      dateSeen: input.dateSeen,
       distractors: JSON.stringify(input.distractors),
     },
   });
 }
 
 export async function updateProfessorConcept(
+  profId: string,
   conceptId: string,
   input: {
+    classId: string;
     subject: string;
     title: string;
     correctAnswer: string;
@@ -112,30 +129,53 @@ export async function updateProfessorConcept(
     dateSeen: Date;
   },
 ) {
-  return prisma.concept.update({
-    where: { id: conceptId },
+  const ownsClass = await prisma.class.count({ where: { id: input.classId, profId } });
+  if (ownsClass === 0) {
+    throw new Error("FORBIDDEN_CLASS");
+  }
+
+  const result = await prisma.concept.updateMany({
+    where: { id: conceptId, class: { profId } },
     data: {
-      ...input,
+      classId: input.classId,
+      subject: input.subject,
+      title: input.title,
+      correctAnswer: input.correctAnswer,
+      dateSeen: input.dateSeen,
       distractors: JSON.stringify(input.distractors),
     },
   });
+
+  if (result.count === 0) {
+    throw new Error("NOT_FOUND");
+  }
 }
 
-export async function deleteProfessorConcept(conceptId: string) {
-  return prisma.concept.delete({ where: { id: conceptId } });
+export async function deleteProfessorConcept(profId: string, conceptId: string) {
+  const result = await prisma.concept.deleteMany({ where: { id: conceptId, class: { profId } } });
+  if (result.count === 0) {
+    throw new Error("NOT_FOUND");
+  }
 }
 
 export async function listProfessorConcepts(params: {
+  profId: string;
+  classId?: string;
   search?: string;
   subject?: string;
   sort?: "dateSeenAsc" | "dateSeenDesc";
 }) {
   const search = params.search?.trim();
+  const classId = params.classId?.trim();
   const subject = params.subject?.trim();
   const sort = params.sort === "dateSeenAsc" ? "asc" : "desc";
 
   const concepts = await prisma.concept.findMany({
     where: {
+      class: {
+        profId: params.profId,
+        ...(classId ? { id: classId } : {}),
+      },
       ...(search
         ? {
             title: {
@@ -146,6 +186,14 @@ export async function listProfessorConcepts(params: {
       ...(subject ? { subject } : {}),
     },
     orderBy: { dateSeen: sort },
+    include: {
+      class: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
   });
 
   return concepts.map((concept) => {
@@ -161,6 +209,8 @@ export async function listProfessorConcepts(params: {
 
     return {
       id: concept.id,
+      classId: concept.class.id,
+      className: concept.class.name,
       subject: concept.subject,
       title: concept.title,
       correctAnswer: concept.correctAnswer,
@@ -169,4 +219,24 @@ export async function listProfessorConcepts(params: {
       createdAt: concept.createdAt.toISOString(),
     };
   });
+}
+
+export async function getProfessorConceptClasses(profId: string) {
+  const [classes, mostRecentConcept] = await Promise.all([
+    prisma.class.findMany({
+      where: { profId },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
+    prisma.concept.findFirst({
+      where: { class: { profId } },
+      orderBy: { createdAt: "desc" },
+      select: { classId: true },
+    }),
+  ]);
+
+  return {
+    classes,
+    mostRecentClassId: mostRecentConcept?.classId ?? classes[0]?.id ?? null,
+  };
 }

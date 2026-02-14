@@ -4,6 +4,8 @@ import { FormEvent, useState } from "react";
 
 type ConceptRow = {
   id: string;
+  classId: string;
+  className: string;
   subject: string;
   title: string;
   correctAnswer: string;
@@ -13,9 +15,12 @@ type ConceptRow = {
 
 type ConceptsManagerProps = {
   concepts: ConceptRow[];
+  classes: Array<{ id: string; name: string }>;
+  defaultClassId: string;
 };
 
 type ConceptForm = {
+  classId: string;
   subject: string;
   title: string;
   correctAnswer: string;
@@ -23,16 +28,18 @@ type ConceptForm = {
   dateSeen: string;
 };
 
-const emptyForm: ConceptForm = {
+const emptyForm = (defaultClassId: string): ConceptForm => ({
+  classId: defaultClassId,
   subject: "",
   title: "",
   correctAnswer: "",
   distractors: "",
   dateSeen: "",
-};
+});
 
 function toFormValues(concept: ConceptRow): ConceptForm {
   return {
+    classId: concept.classId,
     subject: concept.subject,
     title: concept.title,
     correctAnswer: concept.correctAnswer,
@@ -41,9 +48,9 @@ function toFormValues(concept: ConceptRow): ConceptForm {
   };
 }
 
-export function ConceptsManager({ concepts }: ConceptsManagerProps) {
+export function ConceptsManager({ concepts, classes, defaultClassId }: ConceptsManagerProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<ConceptForm>(emptyForm);
+  const [form, setForm] = useState<ConceptForm>(emptyForm(defaultClassId));
   const [error, setError] = useState<string | null>(null);
   const isEditing = editingId !== null;
 
@@ -98,6 +105,20 @@ export function ConceptsManager({ concepts }: ConceptsManagerProps) {
         <h2 className="text-lg font-semibold">{isEditing ? "Edit Concept" : "Create Concept"}</h2>
         <form className="mt-4 space-y-3" onSubmit={submitForm}>
           <div className="grid gap-3 md:grid-cols-2">
+            <label className="text-sm">
+              Class
+              <select
+                className="mt-1 w-full rounded border p-2"
+                value={form.classId}
+                onChange={(event) => setForm((prev) => ({ ...prev, classId: event.target.value }))}
+              >
+                {classes.map((classroom) => (
+                  <option key={classroom.id} value={classroom.id}>
+                    {classroom.name}
+                  </option>
+                ))}
+              </select>
+            </label>
             <label className="text-sm">
               Subject
               <input
@@ -156,7 +177,7 @@ export function ConceptsManager({ concepts }: ConceptsManagerProps) {
                 className="rounded border px-4 py-2 text-sm"
                 onClick={() => {
                   setEditingId(null);
-                  setForm(emptyForm);
+                  setForm(emptyForm(defaultClassId));
                 }}
               >
                 Cancel
@@ -171,6 +192,7 @@ export function ConceptsManager({ concepts }: ConceptsManagerProps) {
           <thead>
             <tr className="border-b">
               <th className="p-2 text-left">Date seen</th>
+              <th className="p-2 text-left">Class</th>
               <th className="p-2 text-left">Subject</th>
               <th className="p-2 text-left">Title</th>
               <th className="p-2 text-left">Correct answer</th>
@@ -182,6 +204,7 @@ export function ConceptsManager({ concepts }: ConceptsManagerProps) {
             {concepts.map((concept) => (
               <tr key={concept.id} className="border-b align-top">
                 <td className="p-2">{new Date(concept.dateSeen).toLocaleDateString()}</td>
+                <td className="p-2">{concept.className}</td>
                 <td className="p-2">{concept.subject}</td>
                 <td className="p-2">{concept.title}</td>
                 <td className="p-2">{concept.correctAnswer}</td>

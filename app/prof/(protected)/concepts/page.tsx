@@ -1,11 +1,12 @@
 import { redirect } from "next/navigation";
 import { Role } from "@prisma/client";
 import { requireRole } from "@/lib/auth";
-import { listProfessorConcepts } from "@/lib/prof-concepts";
+import { getProfessorConceptClasses, listProfessorConcepts } from "@/lib/prof-concepts";
 import { ConceptsManager } from "./ConceptsManager";
 
 type PageProps = {
   searchParams: Promise<{
+    classId?: string;
     search?: string;
     subject?: string;
     sort?: string;
@@ -18,9 +19,17 @@ export default async function ProfConceptsPage({ searchParams }: PageProps) {
     redirect("/prof/login");
   }
 
-  const { search, subject, sort } = await searchParams;
+  const [{ classId, search, subject, sort }, classContext] = await Promise.all([
+    searchParams,
+    getProfessorConceptClasses(session.userId),
+  ]);
+
   const effectiveSort = sort === "dateSeenAsc" ? "dateSeenAsc" : "dateSeenDesc";
+  const effectiveClassId = classId ?? classContext.mostRecentClassId ?? undefined;
+
   const concepts = await listProfessorConcepts({
+    profId: session.userId,
+    classId: effectiveClassId,
     search,
     subject,
     sort: effectiveSort,
@@ -32,6 +41,17 @@ export default async function ProfConceptsPage({ searchParams }: PageProps) {
 
       <form className="rounded border p-4">
         <div className="grid gap-3 md:grid-cols-4">
+          <label className="text-sm">
+            Class
+            <select name="classId" defaultValue={effectiveClassId ?? ""} className="mt-1 w-full rounded border p-2">
+              {classContext.classes.map((classroom) => (
+                <option key={classroom.id} value={classroom.id}>
+                  {classroom.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
           <label className="text-sm md:col-span-2">
             Search by title
             <input name="search" defaultValue={search ?? ""} className="mt-1 w-full rounded border p-2" />
@@ -55,7 +75,11 @@ export default async function ProfConceptsPage({ searchParams }: PageProps) {
         </button>
       </form>
 
-      <ConceptsManager concepts={concepts} />
+      <ConceptsManager
+        concepts={concepts}
+        classes={classContext.classes}
+        defaultClassId={classContext.mostRecentClassId ?? classContext.classes[0]?.id ?? ""}
+      />
     </main>
   );
 }

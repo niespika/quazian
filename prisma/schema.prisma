@@ -60,10 +60,13 @@ model Class {
 
   students StudentProfile[]
   quizzes  Quiz[]
+  concepts Concept[]
 }
 
 model Concept {
   id            String   @id @default(uuid())
+  class         Class    @relation(fields: [classId], references: [id])
+  classId       String
   subject       String
   title         String
   correctAnswer String

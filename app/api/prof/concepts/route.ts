@@ -17,11 +17,12 @@ export async function buildConceptListResponse(
   }
 
   const search = req.nextUrl.searchParams.get("search") ?? undefined;
+  const classId = req.nextUrl.searchParams.get("classId") ?? undefined;
   const subject = req.nextUrl.searchParams.get("subject") ?? undefined;
   const sortParam = req.nextUrl.searchParams.get("sort");
   const sort = sortParam === "dateSeenAsc" ? "dateSeenAsc" : "dateSeenDesc";
 
-  const concepts = await deps.listConcepts({ search, subject, sort });
+  const concepts = await deps.listConcepts({ profId: session.userId, classId, search, subject, sort });
   return NextResponse.json({ concepts });
 }
 
@@ -42,8 +43,15 @@ export async function buildCreateConceptResponse(
     return NextResponse.json({ error: validated.error }, { status: 400 });
   }
 
-  const created = await deps.createConcept(validated.data);
-  return NextResponse.json({ conceptId: created.id }, { status: 201 });
+  try {
+    const created = await deps.createConcept({ profId: session.userId, ...validated.data });
+    return NextResponse.json({ conceptId: created.id }, { status: 201 });
+  } catch (error) {
+    if (error instanceof Error && error.message === "FORBIDDEN_CLASS") {
+      return NextResponse.json({ error: "You can only assign concepts to your own classes." }, { status: 403 });
+    }
+    throw error;
+  }
 }
 
 export async function GET(req: NextRequest) {

@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { Prisma } from "@prisma/client";
-import { Role } from "@prisma/client";
+import { Prisma, Role } from "@prisma/client";
 import { requireRole } from "@/lib/auth";
 import { deleteProfessorConcept, updateProfessorConcept, validateConceptPayload } from "@/lib/prof-concepts";
 
@@ -26,9 +25,15 @@ export async function buildUpdateConceptResponse(
   }
 
   try {
-    await deps.updateConcept(conceptId, validated.data);
+    await deps.updateConcept(session.userId, conceptId, validated.data);
     return NextResponse.json({ ok: true });
   } catch (error) {
+    if (error instanceof Error && error.message === "FORBIDDEN_CLASS") {
+      return NextResponse.json({ error: "You can only assign concepts to your own classes." }, { status: 403 });
+    }
+    if (error instanceof Error && error.message === "NOT_FOUND") {
+      return NextResponse.json({ error: "Concept not found." }, { status: 404 });
+    }
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
       return NextResponse.json({ error: "Concept not found." }, { status: 404 });
     }
@@ -48,9 +53,12 @@ export async function buildDeleteConceptResponse(
   }
 
   try {
-    await deps.deleteConcept(conceptId);
+    await deps.deleteConcept(session.userId, conceptId);
     return new NextResponse(null, { status: 204 });
   } catch (error) {
+    if (error instanceof Error && error.message === "NOT_FOUND") {
+      return NextResponse.json({ error: "Concept not found." }, { status: 404 });
+    }
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
       return NextResponse.json({ error: "Concept not found." }, { status: 404 });
     }
