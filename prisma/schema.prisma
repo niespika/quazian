@@ -8,36 +8,37 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
+  id        String     @id @default(uuid())
+  email     String     @unique
   password  String?
   role      Role
   status    UserStatus @default(ACTIVE)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
 
-  studentProfile StudentProfile?
-  classes        Class[]           @relation("ProfClasses")
-  attempts       Attempt[]
-  invitations    InvitationToken[]
-  sessions       Session[]
+  studentProfile   StudentProfile?
+  classes          Class[]           @relation("ProfClasses")
+  attempts         Attempt[]
+  invitations      InvitationToken[]
+  sessions         Session[]
+  conceptMasteries ConceptMastery[]
 }
 
 model Session {
-  id          String   @id @default(uuid())
-  tokenHash   String   @unique
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId      String
-  expiresAt   DateTime
-  createdAt   DateTime @default(now())
+  id        String   @id @default(uuid())
+  tokenHash String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 }
 
 model InvitationToken {
-  id        String    @id @default(uuid())
-  token     String    @unique
-  user      User      @relation(fields: [userId], references: [id])
+  id        String   @id @default(uuid())
+  token     String   @unique
+  user      User     @relation(fields: [userId], references: [id])
   userId    String
-  createdAt DateTime  @default(now())
+  createdAt DateTime @default(now())
   expiresAt DateTime
   usedAt    DateTime?
 }
@@ -69,6 +70,20 @@ model Concept {
   distractors   String
   dateSeen      DateTime
   createdAt     DateTime @default(now())
+
+  masteries ConceptMastery[]
+}
+
+model ConceptMastery {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  concept   Concept  @relation(fields: [conceptId], references: [id], onDelete: Cascade)
+  conceptId String
+  pMastery  Float
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, conceptId])
 }
 
 model Quiz {
