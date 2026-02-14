@@ -21,6 +21,8 @@
     "app/prof/(protected)/students/page.tsx",
     "app/prof/(protected)/students/ResendInvitationButton.tsx",
     "app/prof/(protected)/students/ImportCsvSection.tsx",
-    "lib/prof-students.ts"
+    "lib/prof-students.ts",
+    "app/student/(protected)/dashboard/page.tsx",
+    "lib/student-dashboard.ts"
   ]
 }
