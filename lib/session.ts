@@ -1,45 +1,33 @@
-import { createHmac, timingSafeEqual } from "crypto";
+import { createHash, randomBytes } from "crypto";
 import { cookies } from "next/headers";
 import { Role } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 
 const SESSION_COOKIE = "quazian_session";
 const SESSION_MAX_AGE = 60 * 60 * 24 * 14;
 
-function secret() {
-  return process.env.SESSION_SECRET ?? "dev-secret-change-me";
+function hashToken(token: string) {
+  return createHash("sha256").update(token).digest("hex");
 }
 
-function sign(payload: string) {
-  return createHmac("sha256", secret()).update(payload).digest("hex");
-}
-
-function encode(data: object) {
-  const payload = Buffer.from(JSON.stringify(data)).toString("base64url");
-  const signature = sign(payload);
-  return `${payload}.${signature}`;
-}
-
-function decode(token: string) {
-  const [payload, signature] = token.split(".");
-  if (!payload || !signature) return null;
-  const expected = sign(payload);
-  const a = Buffer.from(signature);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
-
-  try {
-    return JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as {
-      userId: string;
-      role: Role;
-    };
-  } catch {
-    return null;
-  }
+function getSessionExpiryDate() {
+  return new Date(Date.now() + SESSION_MAX_AGE * 1000);
 }
 
 export async function setSession(userId: string, role: Role) {
+  const token = randomBytes(32).toString("hex");
+  const tokenHash = hashToken(token);
+
+  await prisma.session.create({
+    data: {
+      tokenHash,
+      userId,
+      expiresAt: getSessionExpiryDate(),
+    },
+  });
+
   const store = await cookies();
-  store.set(SESSION_COOKIE, encode({ userId, role }), {
+  store.set(SESSION_COOKIE, `${token}.${role}`, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
@@ -50,12 +38,46 @@ export async function setSession(userId: string, role: Role) {
 
 export async function clearSession() {
   const store = await cookies();
+  const cookieValue = store.get(SESSION_COOKIE)?.value;
+
+  if (cookieValue) {
+    const [token] = cookieValue.split(".");
+    if (token) {
+      await prisma.session.deleteMany({ where: { tokenHash: hashToken(token) } });
+    }
+  }
+
   store.delete(SESSION_COOKIE);
 }
 
 export async function getSession() {
   const store = await cookies();
-  const token = store.get(SESSION_COOKIE)?.value;
-  if (!token) return null;
-  return decode(token);
+  const cookieValue = store.get(SESSION_COOKIE)?.value;
+  if (!cookieValue) return null;
+
+  const [token, cookieRole] = cookieValue.split(".");
+  if (!token || !cookieRole || !Object.values(Role).includes(cookieRole as Role)) {
+    return null;
+  }
+
+  const dbSession = await prisma.session.findUnique({
+    where: { tokenHash: hashToken(token) },
+    include: { user: true },
+  });
+
+  if (!dbSession || dbSession.expiresAt < new Date()) {
+    if (dbSession) {
+      await prisma.session.delete({ where: { id: dbSession.id } });
+    }
+    return null;
+  }
+
+  if (dbSession.user.role !== cookieRole) {
+    return null;
+  }
+
+  return {
+    userId: dbSession.userId,
+    role: dbSession.user.role,
+  };
 }

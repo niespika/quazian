@@ -20,6 +20,16 @@ model User {
   classes        Class[]           @relation("ProfClasses")
   attempts       Attempt[]
   invitations    InvitationToken[]
+  sessions       Session[]
+}
+
+model Session {
+  id          String   @id @default(uuid())
+  tokenHash   String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
 }
 
 model InvitationToken {

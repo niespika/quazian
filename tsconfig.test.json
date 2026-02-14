@@ -11,12 +11,16 @@
   "include": [
     "tests/**/*.ts",
     "tests/**/*.tsx",
+    "middleware.ts",
     "app/api/prof/students/route.ts",
     "app/api/prof/students/[studentId]/resend/route.ts",
-    "app/prof/students/page.tsx",
-    "app/prof/students/ResendInvitationButton.tsx",
-    "lib/prof-students.ts",
     "app/api/prof/students/import/route.ts",
-    "app/prof/students/ImportCsvSection.tsx"
+    "app/api/prof/login/route.ts",
+    "app/api/student/login/route.ts",
+    "app/api/logout/route.ts",
+    "app/prof/(protected)/students/page.tsx",
+    "app/prof/(protected)/students/ResendInvitationButton.tsx",
+    "app/prof/(protected)/students/ImportCsvSection.tsx",
+    "lib/prof-students.ts"
   ]
 }
