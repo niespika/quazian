@@ -1,4 +1,4 @@
-import { computePopulationStats, zMeanToNoteOn20 } from "@/lib/class-relative-grading";
+import { zMeanToNoteOn20 } from "@/lib/class-relative-grading";
 
 export const PROFESSOR_MASTERY_THRESHOLD = 0.8;
 
@@ -10,16 +10,16 @@ export type DashboardStudent = {
 
 export type DashboardAttempt = {
   userId: string;
-  quizId: string;
-  normalizedScore: number;
+  score: number;
   zScore: number | null;
   createdAt: Date;
 };
 
-export type DashboardStudentStats = {
-  userId: string;
-  zMean: number;
-  noteOn20: number;
+export type DashboardWeeklyStat = {
+  studentId: string;
+  attemptsCount: number;
+  meanScore: number | null;
+  zScore: number | null;
 };
 
 export type DashboardConcept = {
@@ -67,51 +67,32 @@ function round(value: number) {
   return Number(value.toFixed(2));
 }
 
-function getAttemptZScore(attempt: DashboardAttempt, attemptsByQuizId: Map<string, DashboardAttempt[]>) {
-  if (attempt.zScore != null) {
-    return attempt.zScore;
-  }
-
-  const quizAttempts = attemptsByQuizId.get(attempt.quizId) ?? [];
-  const { mean, std } = computePopulationStats(quizAttempts.map((entry) => entry.normalizedScore));
-  if (std === 0) {
-    return 0;
-  }
-
-  return Number(((attempt.normalizedScore - mean) / std).toFixed(6));
-}
-
 export function buildProfessorDashboardData({
   students,
   attempts,
-  studentStats,
+  weeklyStats,
   concepts,
   masteries,
   sort,
 }: {
   students: DashboardStudent[];
   attempts: DashboardAttempt[];
-  studentStats: DashboardStudentStats[];
+  weeklyStats: DashboardWeeklyStat[];
   concepts: DashboardConcept[];
   masteries: DashboardMastery[];
   sort: StudentSort;
 }) {
   const totalConceptsAssigned = concepts.length;
-  const attemptsByQuizId = new Map<string, DashboardAttempt[]>();
+
+  const latestAttemptByUserId = new Map<string, DashboardAttempt>();
   for (const attempt of attempts) {
-    const bucket = attemptsByQuizId.get(attempt.quizId) ?? [];
-    bucket.push(attempt);
-    attemptsByQuizId.set(attempt.quizId, bucket);
+    const existing = latestAttemptByUserId.get(attempt.userId);
+    if (!existing || attempt.createdAt.getTime() > existing.createdAt.getTime()) {
+      latestAttemptByUserId.set(attempt.userId, attempt);
+    }
   }
 
-  const attemptsByUserId = new Map<string, DashboardAttempt[]>();
-  for (const attempt of attempts) {
-    const bucket = attemptsByUserId.get(attempt.userId) ?? [];
-    bucket.push(attempt);
-    attemptsByUserId.set(attempt.userId, bucket);
-  }
-
-  const statsByUserId = new Map(studentStats.map((stats) => [stats.userId, stats]));
+  const weeklyStatsByUserId = new Map(weeklyStats.map((stats) => [stats.studentId, stats]));
   const conceptIds = new Set(concepts.map((concept) => concept.id));
 
   const masteryByStudent = new Map<string, Map<string, number>>();
@@ -126,22 +107,10 @@ export function buildProfessorDashboardData({
   }
 
   const studentRows = students.map((student) => {
-    const attemptsForStudent = [...(attemptsByUserId.get(student.userId) ?? [])].sort(
-      (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
-    );
-    const lastAttempt = attemptsForStudent[0];
-    const lastAttemptZScore = lastAttempt ? getAttemptZScore(lastAttempt, attemptsByQuizId) : null;
-
-    const stats = statsByUserId.get(student.userId);
-    const zMean =
-      stats?.zMean ??
-      (attemptsForStudent.length > 0
-        ? round(
-            attemptsForStudent.reduce((sum, attempt) => sum + getAttemptZScore(attempt, attemptsByQuizId), 0) /
-              attemptsForStudent.length,
-          )
-        : null);
-    const finalNoteOn20 = stats?.noteOn20 ?? (zMean == null ? null : zMeanToNoteOn20(zMean));
+    const lastAttempt = latestAttemptByUserId.get(student.userId);
+    const weeklyStat = weeklyStatsByUserId.get(student.userId);
+    const zMean = weeklyStat?.zScore ?? null;
+    const finalNoteOn20 = zMean == null ? null : zMeanToNoteOn20(zMean);
 
     const pMasteryByConcept = masteryByStudent.get(student.userId) ?? new Map<string, number>();
     const masteredCount = concepts.reduce((count, concept) => {
@@ -154,8 +123,10 @@ export function buildProfessorDashboardData({
       displayName: student.name?.trim() ? student.name : student.email,
       email: student.email,
       lastAttemptDate: lastAttempt?.createdAt ?? null,
-      lastNormalizedScore: lastAttempt?.normalizedScore ?? null,
-      lastZScore: lastAttemptZScore == null ? null : round(lastAttemptZScore),
+      lastScore: lastAttempt?.score ?? null,
+      lastZScore: lastAttempt?.zScore == null ? null : round(lastAttempt.zScore),
+      weeklyAttemptsCount: weeklyStat?.attemptsCount ?? 0,
+      weeklyMeanScore: weeklyStat?.meanScore == null ? null : round(weeklyStat.meanScore),
       zMean: zMean == null ? null : round(zMean),
       finalNoteOn20: finalNoteOn20 == null ? null : round(finalNoteOn20),
       masteredCount,
