@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 export const MIN_DISTRACTORS = 9;
 
 export type ConceptInput = {
-  classId: string;
+  classIds: string[];
   subject: string;
   title: string;
   correctAnswer: string;
@@ -16,7 +16,7 @@ export type ConceptValidationResult =
       success: true;
       data: {
         subject: string;
-        classId: string;
+        classIds: string[];
         title: string;
         correctAnswer: string;
         distractors: string[];
@@ -53,19 +53,28 @@ function parseDistractors(value: unknown): string[] {
   return [];
 }
 
+function parseClassIds(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return [...new Set(value.map((item) => normalizeString(item)).filter(Boolean))];
+  }
+
+  const classId = normalizeString(value);
+  return classId ? [classId] : [];
+}
+
 export function validateConceptPayload(payload: unknown): ConceptValidationResult {
   if (!isRecord(payload)) {
     return { success: false, error: "Invalid payload." };
   }
 
   const subject = normalizeString(payload.subject);
-  const classId = normalizeString(payload.classId);
+  const classIds = parseClassIds(payload.classIds ?? payload.classId);
   const title = normalizeString(payload.title);
   const correctAnswer = normalizeString(payload.correctAnswer);
   const distractors = parseDistractors(payload.distractors);
   const dateSeenInput = normalizeString(payload.dateSeen);
 
-  if (!classId || !subject || !title || !correctAnswer || !dateSeenInput) {
+  if (classIds.length === 0 || !subject || !title || !correctAnswer || !dateSeenInput) {
     return { success: false, error: "Missing required fields." };
   }
 
@@ -82,7 +91,7 @@ export function validateConceptPayload(payload: unknown): ConceptValidationResul
     success: true,
     data: {
       subject,
-      classId,
+      classIds,
       title,
       correctAnswer,
       distractors,
@@ -91,28 +100,35 @@ export function validateConceptPayload(payload: unknown): ConceptValidationResul
   };
 }
 
+async function ensureProfessorOwnsClasses(profId: string, classIds: string[]) {
+  const count = await prisma.class.count({ where: { id: { in: classIds }, profId } });
+  if (count !== classIds.length) {
+    throw new Error("FORBIDDEN_CLASS");
+  }
+}
+
 export async function createProfessorConcept(input: {
   profId: string;
-  classId: string;
+  classIds: string[];
   subject: string;
   title: string;
   correctAnswer: string;
   distractors: string[];
   dateSeen: Date;
 }) {
-  const ownsClass = await prisma.class.count({ where: { id: input.classId, profId: input.profId } });
-  if (ownsClass === 0) {
-    throw new Error("FORBIDDEN_CLASS");
-  }
+  await ensureProfessorOwnsClasses(input.profId, input.classIds);
 
   return prisma.concept.create({
     data: {
-      classId: input.classId,
+      profId: input.profId,
       subject: input.subject,
       title: input.title,
       correctAnswer: input.correctAnswer,
       dateSeen: input.dateSeen,
       distractors: JSON.stringify(input.distractors),
+      assignments: {
+        create: input.classIds.map((classId) => ({ classId })),
+      },
     },
   });
 }
@@ -121,7 +137,7 @@ export async function updateProfessorConcept(
   profId: string,
   conceptId: string,
   input: {
-    classId: string;
+    classIds: string[];
     subject: string;
     title: string;
     correctAnswer: string;
@@ -129,15 +145,11 @@ export async function updateProfessorConcept(
     dateSeen: Date;
   },
 ) {
-  const ownsClass = await prisma.class.count({ where: { id: input.classId, profId } });
-  if (ownsClass === 0) {
-    throw new Error("FORBIDDEN_CLASS");
-  }
+  await ensureProfessorOwnsClasses(profId, input.classIds);
 
   const result = await prisma.concept.updateMany({
-    where: { id: conceptId, class: { profId } },
+    where: { id: conceptId, profId },
     data: {
-      classId: input.classId,
       subject: input.subject,
       title: input.title,
       correctAnswer: input.correctAnswer,
@@ -149,10 +161,13 @@ export async function updateProfessorConcept(
   if (result.count === 0) {
     throw new Error("NOT_FOUND");
   }
+
+  await prisma.classConcept.deleteMany({ where: { conceptId } });
+  await prisma.classConcept.createMany({ data: input.classIds.map((classId) => ({ classId, conceptId })) });
 }
 
 export async function deleteProfessorConcept(profId: string, conceptId: string) {
-  const result = await prisma.concept.deleteMany({ where: { id: conceptId, class: { profId } } });
+  const result = await prisma.concept.deleteMany({ where: { id: conceptId, profId } });
   if (result.count === 0) {
     throw new Error("NOT_FOUND");
   }
@@ -172,10 +187,8 @@ export async function listProfessorConcepts(params: {
 
   const concepts = await prisma.concept.findMany({
     where: {
-      class: {
-        profId: params.profId,
-        ...(classId ? { id: classId } : {}),
-      },
+      profId: params.profId,
+      ...(classId ? { assignments: { some: { classId } } } : {}),
       ...(search
         ? {
             title: {
@@ -187,10 +200,14 @@ export async function listProfessorConcepts(params: {
     },
     orderBy: { dateSeen: sort },
     include: {
-      class: {
-        select: {
-          id: true,
-          name: true,
+      assignments: {
+        include: {
+          class: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
         },
       },
     },
@@ -207,10 +224,14 @@ export async function listProfessorConcepts(params: {
       distractors = [];
     }
 
+    const classes = concept.assignments
+      .map((assignment) => assignment.class)
+      .sort((a, b) => a.name.localeCompare(b.name));
+
     return {
       id: concept.id,
-      classId: concept.class.id,
-      className: concept.class.name,
+      classIds: classes.map((item) => item.id),
+      classNames: classes.map((item) => item.name),
       subject: concept.subject,
       title: concept.title,
       correctAnswer: concept.correctAnswer,
@@ -229,14 +250,20 @@ export async function getProfessorConceptClasses(profId: string) {
       select: { id: true, name: true },
     }),
     prisma.concept.findFirst({
-      where: { class: { profId } },
+      where: { profId },
       orderBy: { createdAt: "desc" },
-      select: { classId: true },
+      select: {
+        assignments: {
+          take: 1,
+          orderBy: { assignedAt: "desc" },
+          select: { classId: true },
+        },
+      },
     }),
   ]);
 
   return {
     classes,
-    mostRecentClassId: mostRecentConcept?.classId ?? classes[0]?.id ?? null,
+    mostRecentClassId: mostRecentConcept?.assignments[0]?.classId ?? classes[0]?.id ?? null,
   };
 }

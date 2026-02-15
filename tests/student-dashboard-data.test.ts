@@ -45,6 +45,6 @@ test("buildConceptLists applies sort and filter options", () => {
 test("buildStudentConceptMasteryWhere scopes concepts to the student class", () => {
   assert.deepEqual(buildStudentConceptMasteryWhere("student-1", "class-9"), {
     userId: "student-1",
-    concept: { classId: "class-9" },
+    concept: { assignments: { some: { classId: "class-9" } } },
   });
 });

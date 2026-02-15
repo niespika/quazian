@@ -25,7 +25,7 @@ export default async function ProfConceptsPage({ searchParams }: PageProps) {
   ]);
 
   const effectiveSort = sort === "dateSeenAsc" ? "dateSeenAsc" : "dateSeenDesc";
-  const effectiveClassId = classId ?? classContext.mostRecentClassId ?? undefined;
+  const effectiveClassId = classId?.trim() ? classId : undefined;
 
   const concepts = await listProfessorConcepts({
     profId: session.userId,
@@ -44,6 +44,7 @@ export default async function ProfConceptsPage({ searchParams }: PageProps) {
           <label className="text-sm">
             Class
             <select name="classId" defaultValue={effectiveClassId ?? ""} className="mt-1 w-full rounded border p-2">
+              <option value="">All classes</option>
               {classContext.classes.map((classroom) => (
                 <option key={classroom.id} value={classroom.id}>
                   {classroom.name}

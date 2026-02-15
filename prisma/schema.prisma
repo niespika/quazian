@@ -18,6 +18,7 @@ model User {
 
   studentProfile   StudentProfile?
   classes          Class[]           @relation("ProfClasses")
+  concepts         Concept[]         @relation("ProfConcepts")
   attempts         Attempt[]
   invitations      InvitationToken[]
   sessions         Session[]
@@ -60,13 +61,13 @@ model Class {
 
   students StudentProfile[]
   quizzes  Quiz[]
-  concepts Concept[]
+  conceptAssignments ClassConcept[]
 }
 
 model Concept {
   id            String   @id @default(uuid())
-  class         Class    @relation(fields: [classId], references: [id])
-  classId       String
+  prof          User     @relation("ProfConcepts", fields: [profId], references: [id])
+  profId        String
   subject       String
   title         String
   correctAnswer String
@@ -75,6 +76,18 @@ model Concept {
   createdAt     DateTime @default(now())
 
   masteries ConceptMastery[]
+  assignments ClassConcept[]
+}
+
+model ClassConcept {
+  id         String   @id @default(uuid())
+  class      Class    @relation(fields: [classId], references: [id], onDelete: Cascade)
+  classId    String
+  concept    Concept  @relation(fields: [conceptId], references: [id], onDelete: Cascade)
+  conceptId  String
+  assignedAt DateTime @default(now())
+
+  @@unique([classId, conceptId])
 }
 
 model ConceptMastery {
