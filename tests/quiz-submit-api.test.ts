@@ -78,6 +78,44 @@ test("POST /api/quiz/submit rejects already submitted attempts", async () => {
   assert.equal(response.status, 409);
 });
 
+
+
+test("POST /api/quiz/submit blocks duplicate submissions and keeps a single attempt", async () => {
+  const attempts: { userId: string; quizId: string }[] = [];
+
+  async function submitOnce() {
+    const req = new Request("http://localhost/api/quiz/submit", {
+      method: "POST",
+      body: JSON.stringify({
+        quizId: "quiz-1",
+        answers: [
+          { questionId: "q-1", distribution: [25, 25, 25, 25] },
+          { questionId: "q-2", distribution: [25, 25, 25, 25] },
+        ],
+      }),
+    });
+
+    return buildQuizSubmitResponse(req, { userId: "student-1" }, {
+      findStudentClass: async () => ({ classId: "class-1" }),
+      findQuiz: async () => baseQuiz,
+      findAttempt: async (userId, quizId) =>
+        attempts.find((attempt) => attempt.userId === userId && attempt.quizId === quizId)
+          ? { id: "attempt-1" }
+          : null,
+      persistSubmission: async (userId, quizId) => {
+        attempts.push({ userId, quizId });
+      },
+    });
+  }
+
+  const firstResponse = await submitOnce();
+  assert.equal(firstResponse.status, 200);
+
+  const secondResponse = await submitOnce();
+  assert.equal(secondResponse.status, 409);
+
+  assert.equal(attempts.length, 1);
+});
 test("POST /api/quiz/submit returns raw + normalized scores and persists mastery input", async () => {
   let persisted:
     | {

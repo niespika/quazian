@@ -146,7 +146,7 @@ model Attempt {
   noteOn20  Float?
   createdAt DateTime @default(now())
 
-  @@unique([userId, quizId])
+  @@unique([userId, quizId], name: "userId_quizId")
 }
 
 model StudentStats {

@@ -1,0 +1,2 @@
+-- Prisma schema change only: assign the composite unique selector name used by Prisma Client.
+-- No SQL changes are required because the underlying unique index already exists.
