@@ -140,6 +140,8 @@ model Attempt {
   quizId    String
   score     Float
   createdAt DateTime @default(now())
+
+  @@unique([userId, quizId])
 }
 
 enum Role {

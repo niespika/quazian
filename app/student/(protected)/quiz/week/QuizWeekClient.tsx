@@ -25,7 +25,8 @@ type QuestionFeedback = {
 };
 
 type SubmitResponse = {
-  totalScore: number;
+  totalScoreRaw: number;
+  totalScoreNormalized: number;
   perQuestion: QuestionFeedback[];
 };
 
@@ -168,7 +169,7 @@ export function QuizWeekClient({ quiz, initialDistributions, initialFeedback = n
         {error ? <p className="text-sm font-semibold text-red-600">{error}</p> : null}
 
         {feedback ? (
-          <p className="text-lg font-bold">Total score: {feedback.totalScore.toFixed(3)}</p>
+          <p className="text-lg font-bold">Total score: {feedback.totalScoreNormalized.toFixed(3)}</p>
         ) : (
           <button
             type="submit"
