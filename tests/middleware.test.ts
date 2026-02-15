@@ -27,3 +27,15 @@ test("middleware redirects unauthenticated student route", () => {
   assert.equal(response.status, 307);
   assert.equal(response.headers.get("location"), "http://localhost/student/login");
 });
+
+test("middleware blocks student role from professor dashboard", () => {
+  const request = new NextRequest("http://localhost/prof/dashboard", {
+    headers: {
+      cookie: "quazian_session=abc.STUDENT",
+    },
+  });
+
+  const response = middleware(request);
+  assert.equal(response.status, 307);
+  assert.equal(response.headers.get("location"), "http://localhost/prof/login");
+});
