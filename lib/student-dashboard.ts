@@ -1,3 +1,5 @@
+import { zMeanToNoteOn20 } from "@/lib/class-relative-grading";
+
 export type DashboardSort = "subject" | "title" | "p_mastery_desc" | "p_mastery_asc";
 export type DashboardFilter = "all" | "mastered" | "to_work_on";
 
@@ -39,10 +41,8 @@ export function scoreToNoteOn20(score: number | null | undefined): number | null
     return null;
   }
 
-  const normalized = ((Math.max(-4, Math.min(4, score)) + 4) / 8) * 20;
-  return Number(normalized.toFixed(2));
+  return zMeanToNoteOn20(score);
 }
-
 
 export function buildStudentConceptMasteryWhere(userId: string, classId: string) {
   return {
@@ -50,6 +50,7 @@ export function buildStudentConceptMasteryWhere(userId: string, classId: string)
     concept: { assignments: { some: { classId } } },
   };
 }
+
 function sortConcepts(concepts: MasteryConcept[], sort: DashboardSort) {
   return [...concepts].sort((a, b) => {
     if (sort === "title") {

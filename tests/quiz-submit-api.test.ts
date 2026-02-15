@@ -103,7 +103,7 @@ test("POST /api/quiz/submit returns raw + normalized scores and persists mastery
     findStudentClass: async () => ({ classId: "class-1" }),
     findQuiz: async () => baseQuiz,
     findAttempt: async () => null,
-    persistSubmission: async (userId, quizId, normalizedScore, conceptProbabilities) => {
+    persistSubmission: async (userId, quizId, _classId, normalizedScore, conceptProbabilities) => {
       persisted = { userId, quizId, normalizedScore, conceptProbabilities };
     },
   });

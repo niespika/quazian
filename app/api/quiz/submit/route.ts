@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { computeQuizAttemptZScores, zMeanToNoteOn20 } from "@/lib/class-relative-grading";
 
 type Session = { userId: string } | null;
 
@@ -91,6 +92,7 @@ export async function buildQuizSubmitResponse(
     persistSubmission: async (
       userId: string,
       quizId: string,
+      classId: string,
       normalizedScore: number,
       conceptProbabilities: Map<string, number>,
     ) => {
@@ -100,8 +102,64 @@ export async function buildQuizSubmitResponse(
             userId,
             quizId,
             score: normalizedScore,
+            normalizedScore,
           },
         });
+
+        const quizAttempts = await tx.attempt.findMany({
+          where: { quizId },
+          select: {
+            id: true,
+            normalizedScore: true,
+          },
+        });
+
+        const quizAttemptGrades = computeQuizAttemptZScores(quizAttempts);
+        await Promise.all(
+          quizAttemptGrades.map((attempt) =>
+            tx.attempt.update({
+              where: { id: attempt.id },
+              data: {
+                zScore: attempt.zScore,
+                noteOn20: attempt.noteOn20,
+              },
+            }),
+          ),
+        );
+
+        const classStudentZMeans = await tx.attempt.groupBy({
+          by: ["userId"],
+          where: {
+            quiz: { classId },
+          },
+          _avg: {
+            zScore: true,
+          },
+        });
+
+        await Promise.all(
+          classStudentZMeans.map((item) => {
+            const zMean = item._avg.zScore ?? 0;
+            return tx.studentStats.upsert({
+              where: {
+                userId_classId: {
+                  userId: item.userId,
+                  classId,
+                },
+              },
+              create: {
+                userId: item.userId,
+                classId,
+                zMean,
+                noteOn20: zMeanToNoteOn20(zMean),
+              },
+              update: {
+                zMean,
+                noteOn20: zMeanToNoteOn20(zMean),
+              },
+            });
+          }),
+        );
 
         const conceptIds = [...conceptProbabilities.keys()];
         const existingMastery = await tx.conceptMastery.findMany({
@@ -215,7 +273,13 @@ export async function buildQuizSubmitResponse(
   );
 
   try {
-    await deps.persistSubmission(session.userId, payload.quizId, totalScoreNormalized, averagedConceptProbabilities);
+    await deps.persistSubmission(
+      session.userId,
+      payload.quizId,
+      quiz.classId,
+      totalScoreNormalized,
+      averagedConceptProbabilities,
+    );
   } catch (error) {
     if (typeof error === "object" && error && "code" in error && (error as { code?: string }).code === "P2002") {
       return NextResponse.json({ error: "Quiz has already been submitted." }, { status: 409 });

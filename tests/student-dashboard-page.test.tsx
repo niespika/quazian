@@ -6,8 +6,11 @@ import { StudentDashboardContent } from "@/app/student/(protected)/dashboard/pag
 test("Student dashboard renders metrics, filters, and grouped concept sections", () => {
   const html = renderToStaticMarkup(
     <StudentDashboardContent
-      latestQuizScore={2.75}
-      overallNote={16.88}
+      latestAttempt={{ normalizedScore: 2.75, zScore: 0.9, noteOn20: 13.6 }}
+      overall={{ zMean: 0.62, finalNoteOn20: 12.48 }}
+      history={[
+        { weekKey: "2026-W07", slot: "A", normalizedScore: 2.75, zScore: 0.9, noteOn20: 13.6 },
+      ]}
       sort="subject"
       filter="all"
       concepts={[
@@ -18,8 +21,9 @@ test("Student dashboard renders metrics, filters, and grouped concept sections",
     />,
   );
 
-  assert.match(html, /Latest quiz score/);
-  assert.match(html, /Overall note \/20/);
+  assert.match(html, /Latest quiz/);
+  assert.match(html, /Overall class-relative performance/);
+  assert.match(html, /Recent attempts/);
   assert.match(html, /Sort/);
   assert.match(html, /Filter/);
   assert.match(html, /Mastered/);

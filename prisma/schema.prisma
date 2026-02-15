@@ -23,6 +23,7 @@ model User {
   invitations      InvitationToken[]
   sessions         Session[]
   conceptMasteries ConceptMastery[]
+  studentStats     StudentStats[]
 }
 
 model Session {
@@ -62,6 +63,7 @@ model Class {
   students StudentProfile[]
   quizzes  Quiz[]
   conceptAssignments ClassConcept[]
+  studentStats StudentStats[]
 }
 
 model Concept {
@@ -139,9 +141,25 @@ model Attempt {
   quiz      Quiz     @relation(fields: [quizId], references: [id])
   quizId    String
   score     Float
+  normalizedScore Float
+  zScore    Float?
+  noteOn20  Float?
   createdAt DateTime @default(now())
 
   @@unique([userId, quizId])
+}
+
+model StudentStats {
+  id          String   @id @default(uuid())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  class       Class    @relation(fields: [classId], references: [id], onDelete: Cascade)
+  classId     String
+  zMean       Float
+  noteOn20    Float
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, classId])
 }
 
 enum Role {

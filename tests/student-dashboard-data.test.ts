@@ -9,10 +9,12 @@ const concepts = [
   { id: "4", subject: "HLP", title: "Photosynthesis", pMastery: 0.45 },
 ];
 
-test("scoreToNoteOn20 converts quiz score scale [-4,4] to /20", () => {
-  assert.equal(scoreToNoteOn20(4), 20);
-  assert.equal(scoreToNoteOn20(-4), 0);
+test("scoreToNoteOn20 converts zMean to /20 with clamping", () => {
+  assert.equal(scoreToNoteOn20(1), 14);
+  assert.equal(scoreToNoteOn20(-1), 6);
   assert.equal(scoreToNoteOn20(0), 10);
+  assert.equal(scoreToNoteOn20(20), 20);
+  assert.equal(scoreToNoteOn20(-20), 0);
   assert.equal(scoreToNoteOn20(null), null);
 });
 
