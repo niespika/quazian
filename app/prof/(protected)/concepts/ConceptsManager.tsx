@@ -4,8 +4,8 @@ import { FormEvent, useState } from "react";
 
 type ConceptRow = {
   id: string;
-  classId: string;
-  className: string;
+  classIds: string[];
+  classNames: string[];
   subject: string;
   title: string;
   correctAnswer: string;
@@ -20,7 +20,7 @@ type ConceptsManagerProps = {
 };
 
 type ConceptForm = {
-  classId: string;
+  classIds: string[];
   subject: string;
   title: string;
   correctAnswer: string;
@@ -29,7 +29,7 @@ type ConceptForm = {
 };
 
 const emptyForm = (defaultClassId: string): ConceptForm => ({
-  classId: defaultClassId,
+  classIds: defaultClassId ? [defaultClassId] : [],
   subject: "",
   title: "",
   correctAnswer: "",
@@ -39,13 +39,17 @@ const emptyForm = (defaultClassId: string): ConceptForm => ({
 
 function toFormValues(concept: ConceptRow): ConceptForm {
   return {
-    classId: concept.classId,
+    classIds: concept.classIds,
     subject: concept.subject,
     title: concept.title,
     correctAnswer: concept.correctAnswer,
     distractors: concept.distractors.join("\n"),
     dateSeen: concept.dateSeen.slice(0, 10),
   };
+}
+
+function toggleClassSelection(values: string[], classId: string) {
+  return values.includes(classId) ? values.filter((value) => value !== classId) : [...values, classId];
 }
 
 export function ConceptsManager({ concepts, classes, defaultClassId }: ConceptsManagerProps) {
@@ -104,21 +108,28 @@ export function ConceptsManager({ concepts, classes, defaultClassId }: ConceptsM
       <section className="rounded border p-4">
         <h2 className="text-lg font-semibold">{isEditing ? "Edit Concept" : "Create Concept"}</h2>
         <form className="mt-4 space-y-3" onSubmit={submitForm}>
+          <fieldset className="rounded border p-3">
+            <legend className="px-1 text-sm font-medium">Assigned classes</legend>
+            <div className="mt-2 grid gap-2 md:grid-cols-2">
+              {classes.map((classroom) => (
+                <label key={classroom.id} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={form.classIds.includes(classroom.id)}
+                    onChange={() =>
+                      setForm((prev) => ({
+                        ...prev,
+                        classIds: toggleClassSelection(prev.classIds, classroom.id),
+                      }))
+                    }
+                  />
+                  <span>{classroom.name}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+
           <div className="grid gap-3 md:grid-cols-2">
-            <label className="text-sm">
-              Class
-              <select
-                className="mt-1 w-full rounded border p-2"
-                value={form.classId}
-                onChange={(event) => setForm((prev) => ({ ...prev, classId: event.target.value }))}
-              >
-                {classes.map((classroom) => (
-                  <option key={classroom.id} value={classroom.id}>
-                    {classroom.name}
-                  </option>
-                ))}
-              </select>
-            </label>
             <label className="text-sm">
               Subject
               <input
@@ -192,7 +203,7 @@ export function ConceptsManager({ concepts, classes, defaultClassId }: ConceptsM
           <thead>
             <tr className="border-b">
               <th className="p-2 text-left">Date seen</th>
-              <th className="p-2 text-left">Class</th>
+              <th className="p-2 text-left">Classes</th>
               <th className="p-2 text-left">Subject</th>
               <th className="p-2 text-left">Title</th>
               <th className="p-2 text-left">Correct answer</th>
@@ -204,7 +215,7 @@ export function ConceptsManager({ concepts, classes, defaultClassId }: ConceptsM
             {concepts.map((concept) => (
               <tr key={concept.id} className="border-b align-top">
                 <td className="p-2">{new Date(concept.dateSeen).toLocaleDateString()}</td>
-                <td className="p-2">{concept.className}</td>
+                <td className="p-2">{concept.classNames.join(", ")}</td>
                 <td className="p-2">{concept.subject}</td>
                 <td className="p-2">{concept.title}</td>
                 <td className="p-2">{concept.correctAnswer}</td>

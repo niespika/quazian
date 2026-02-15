@@ -5,7 +5,7 @@ import { buildConceptListResponse, buildCreateConceptResponse } from "@/app/api/
 import { buildUpdateConceptResponse } from "@/app/api/prof/concepts/[conceptId]/route";
 
 const validPayload = {
-  classId: "class-1",
+  classIds: ["class-1", "class-2"],
   subject: "PHILO",
   title: "Socrates",
   correctAnswer: "Athens",
@@ -35,7 +35,7 @@ test("GET /api/prof/concepts forwards class, filters and sort", async () => {
           {
             ...validPayload,
             id: "c-1",
-            className: "4A",
+            classNames: ["4A", "4B"],
             dateSeen: "2026-02-10T00:00:00.000Z",
             createdAt: "2026-02-10T00:00:00.000Z",
           },
@@ -86,6 +86,24 @@ test("POST /api/prof/concepts denies assigning concept to a class not owned by p
   });
 
   assert.equal(response.status, 403);
+});
+
+test("POST /api/prof/concepts accepts multi-class assignment payload", async () => {
+  const req = new Request("http://localhost/api/prof/concepts", {
+    method: "POST",
+    body: JSON.stringify(validPayload),
+  });
+
+  let classIds: string[] | undefined;
+  const response = await buildCreateConceptResponse(req, { userId: "prof-1" }, {
+    createConcept: async (payload) => {
+      classIds = payload.classIds;
+      return { id: "concept-1" } as { id: string };
+    },
+  });
+
+  assert.equal(response.status, 201);
+  assert.deepEqual(classIds, ["class-1", "class-2"]);
 });
 
 test("PUT /api/prof/concepts/:id validates missing fields", async () => {

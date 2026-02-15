@@ -47,7 +47,7 @@ export function scoreToNoteOn20(score: number | null | undefined): number | null
 export function buildStudentConceptMasteryWhere(userId: string, classId: string) {
   return {
     userId,
-    concept: { classId },
+    concept: { assignments: { some: { classId } } },
   };
 }
 function sortConcepts(concepts: MasteryConcept[], sort: DashboardSort) {

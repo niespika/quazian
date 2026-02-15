@@ -3,16 +3,19 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ConceptsManager } from "@/app/prof/(protected)/concepts/ConceptsManager";
 
-test("Concepts manager renders class picker, concept table and create form labels", () => {
+test("Concepts manager renders multi-class picker, concept table and create form labels", () => {
   const html = renderToStaticMarkup(
     <ConceptsManager
-      classes={[{ id: "class-1", name: "4A" }]}
+      classes={[
+        { id: "class-1", name: "4A" },
+        { id: "class-2", name: "4B" },
+      ]}
       defaultClassId="class-1"
       concepts={[
         {
           id: "concept-1",
-          classId: "class-1",
-          className: "4A",
+          classIds: ["class-1", "class-2"],
+          classNames: ["4A", "4B"],
           subject: "PHILO",
           title: "Socrates",
           correctAnswer: "Athens",
@@ -24,11 +27,12 @@ test("Concepts manager renders class picker, concept table and create form label
   );
 
   assert.match(html, /Create Concept/);
-  assert.match(html, /Class/);
+  assert.match(html, /Assigned classes/);
+  assert.match(html, /type="checkbox"/);
   assert.match(html, /Distractors \(one per line, minimum 9\)/);
   assert.match(html, /Socrates/);
   assert.match(html, /PHILO/);
-  assert.match(html, />4A</);
+  assert.match(html, /4A, 4B/);
   assert.match(html, /Edit/);
   assert.match(html, /Delete/);
 });
