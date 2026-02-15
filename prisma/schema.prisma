@@ -77,6 +77,7 @@ model Concept {
 
   masteries ConceptMastery[]
   assignments ClassConcept[]
+  quizQuestions QuizQuestion[]
 }
 
 model ClassConcept {
@@ -106,8 +107,29 @@ model Quiz {
   id        String    @id @default(uuid())
   class     Class     @relation(fields: [classId], references: [id])
   classId   String
+  weekKey   String
+  slot      String
   createdAt DateTime  @default(now())
   attempts  Attempt[]
+  questions QuizQuestion[]
+
+  @@unique([classId, weekKey, slot])
+}
+
+model QuizQuestion {
+  id              String @id @default(uuid())
+  quiz            Quiz   @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  quizId          String
+  concept         Concept @relation(fields: [conceptId], references: [id], onDelete: Cascade)
+  conceptId       String
+  order           Int
+  subject         String
+  title           String
+  optionsJson     String
+  correctIndex    Int
+  optionSignature String
+
+  @@index([optionSignature])
 }
 
 model Attempt {
