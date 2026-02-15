@@ -5,7 +5,7 @@ import { requireRole } from "@/lib/auth";
 import { QuizWeekClient } from "@/app/student/(protected)/quiz/week/QuizWeekClient";
 
 type QuizResponse = {
-  id: string;
+  quizId: string;
   weekKey: string;
   slot: string;
   questions: {
@@ -13,16 +13,21 @@ type QuizResponse = {
     conceptId: string;
     subject: string;
     title: string;
-    options: string[];
+    optionsJson: string[];
   }[];
 };
 
-async function getCurrentQuiz(): Promise<QuizResponse | null> {
+type QuizFetchResult =
+  | { status: "ok"; quiz: QuizResponse }
+  | { status: "no_quiz" }
+  | { status: "error" };
+
+async function getCurrentQuiz(): Promise<QuizFetchResult> {
   const headerStore = await headers();
   const host = headerStore.get("host");
   const proto = headerStore.get("x-forwarded-proto") ?? "http";
   if (!host) {
-    return null;
+    return { status: "error" };
   }
 
   const response = await fetch(`${proto}://${host}/api/quiz/week`, {
@@ -32,16 +37,20 @@ async function getCurrentQuiz(): Promise<QuizResponse | null> {
     },
   }).catch(() => null);
 
-  if (!response || response.status === 404) {
-    return null;
+  if (!response) {
+    return { status: "error" };
   }
 
-  const body = await response.json();
-  if (!response.ok || body.error === "NO_QUIZ_YET") {
-    return null;
+  if (response.status === 404) {
+    return { status: "no_quiz" };
   }
 
-  return body as QuizResponse;
+  if (!response.ok) {
+    return { status: "error" };
+  }
+
+  const body = (await response.json()) as QuizResponse;
+  return { status: "ok", quiz: body };
 }
 
 export default async function StudentWeeklyQuizPage() {
@@ -50,9 +59,9 @@ export default async function StudentWeeklyQuizPage() {
     redirect("/student/login");
   }
 
-  const quiz = await getCurrentQuiz();
+  const quizResult = await getCurrentQuiz();
 
-  if (!quiz) {
+  if (quizResult.status === "no_quiz") {
     return (
       <main className="mx-auto max-w-5xl p-8">
         <h1 className="text-2xl font-bold">Weekly Quiz</h1>
@@ -61,5 +70,14 @@ export default async function StudentWeeklyQuizPage() {
     );
   }
 
-  return <QuizWeekClient quiz={quiz} />;
+  if (quizResult.status === "error") {
+    return (
+      <main className="mx-auto max-w-5xl p-8">
+        <h1 className="text-2xl font-bold">Weekly Quiz</h1>
+        <p className="mt-3 text-red-600">Unable to load quiz right now. Please try again shortly.</p>
+      </main>
+    );
+  }
+
+  return <QuizWeekClient quiz={quizResult.quiz} />;
 }

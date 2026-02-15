@@ -48,7 +48,7 @@ export async function GET() {
   }
 
   return NextResponse.json({
-    id: quiz.id,
+    quizId: quiz.id,
     weekKey: quiz.weekKey,
     slot: quiz.slot,
     createdAt: quiz.createdAt.toISOString(),
@@ -58,7 +58,7 @@ export async function GET() {
       order: question.order,
       subject: question.subject,
       title: question.title,
-      options: JSON.parse(question.optionsJson) as string[],
+      optionsJson: JSON.parse(question.optionsJson) as string[],
     })),
   });
 }
