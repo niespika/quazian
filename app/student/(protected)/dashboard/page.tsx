@@ -27,8 +27,22 @@ function formatPercent(probability: number) {
 }
 
 type StudentDashboardContentProps = {
-  latestQuizScore: number | null;
-  overallNote: number | null;
+  latestAttempt: {
+    normalizedScore: number | null;
+    zScore: number | null;
+    noteOn20: number | null;
+  } | null;
+  overall: {
+    zMean: number | null;
+    finalNoteOn20: number | null;
+  };
+  history: {
+    weekKey: string;
+    slot: string;
+    normalizedScore: number;
+    zScore: number;
+    noteOn20: number;
+  }[];
   concepts: MasteryConcept[];
   sort: DashboardSort;
   filter: DashboardFilter;
@@ -65,8 +79,9 @@ function SubjectGroupList({
 }
 
 export function StudentDashboardContent({
-  latestQuizScore,
-  overallNote,
+  latestAttempt,
+  overall,
+  history,
   concepts,
   sort,
   filter,
@@ -79,14 +94,33 @@ export function StudentDashboardContent({
 
       <section className="grid gap-4 sm:grid-cols-2">
         <article className="rounded-lg border border-gray-200 p-4">
-          <p className="text-xs font-semibold uppercase text-gray-500">Latest quiz score</p>
-          <p className="mt-2 text-2xl font-bold">{formatScore(latestQuizScore)}</p>
+          <p className="text-xs font-semibold uppercase text-gray-500">Latest quiz</p>
+          <p className="mt-2 text-sm text-gray-600">Normalized score: {formatScore(latestAttempt?.normalizedScore ?? null)}</p>
+          <p className="mt-1 text-sm text-gray-600">z-score: {formatScore(latestAttempt?.zScore ?? null)}</p>
+          <p className="mt-1 text-2xl font-bold">{formatScore(latestAttempt?.noteOn20 ?? null)} /20</p>
         </article>
 
         <article className="rounded-lg border border-gray-200 p-4">
-          <p className="text-xs font-semibold uppercase text-gray-500">Overall note /20</p>
-          <p className="mt-2 text-2xl font-bold">{formatScore(overallNote)}</p>
+          <p className="text-xs font-semibold uppercase text-gray-500">Overall class-relative performance</p>
+          <p className="mt-2 text-sm text-gray-600">zMean: {formatScore(overall.zMean)}</p>
+          <p className="mt-1 text-2xl font-bold">{formatScore(overall.finalNoteOn20)} /20</p>
         </article>
+      </section>
+
+      <section className="rounded-lg border border-gray-200 p-4">
+        <h2 className="text-lg font-semibold">Recent attempts</h2>
+        {history.length === 0 ? (
+          <p className="mt-2 text-sm text-gray-500">No attempts yet.</p>
+        ) : (
+          <ul className="mt-3 space-y-2 text-sm text-gray-700">
+            {history.map((entry) => (
+              <li key={`${entry.weekKey}-${entry.slot}`} className="rounded border border-gray-200 px-3 py-2">
+                {entry.weekKey} / {entry.slot} — score {formatScore(entry.normalizedScore)}, z {formatScore(entry.zScore)},
+                note {formatScore(entry.noteOn20)}/20
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <section className="rounded-lg border border-gray-200 p-4">
@@ -152,15 +186,36 @@ export default async function StudentDashboardPage({ searchParams }: StudentDash
     return null;
   }
 
-  const [latestAttempt, scoreAggregate, masteryRows] = await Promise.all([
+  const [latestAttempt, overallStats, recentAttempts, masteryRows] = await Promise.all([
     prisma.attempt.findFirst({
       where: { userId: session.userId },
       orderBy: { createdAt: "desc" },
-      select: { score: true },
+      select: { normalizedScore: true, zScore: true, noteOn20: true },
     }),
-    prisma.attempt.aggregate({
+    prisma.studentStats.findUnique({
+      where: {
+        userId_classId: {
+          userId: session.userId,
+          classId: studentProfile.classId,
+        },
+      },
+      select: { zMean: true, noteOn20: true },
+    }),
+    prisma.attempt.findMany({
       where: { userId: session.userId },
-      _avg: { score: true },
+      orderBy: { createdAt: "desc" },
+      take: 8,
+      select: {
+        normalizedScore: true,
+        zScore: true,
+        noteOn20: true,
+        quiz: {
+          select: {
+            weekKey: true,
+            slot: true,
+          },
+        },
+      },
     }),
     prisma.conceptMastery.findMany({
       where: buildStudentConceptMasteryWhere(session.userId, studentProfile.classId),
@@ -185,8 +240,20 @@ export default async function StudentDashboardPage({ searchParams }: StudentDash
 
   return (
     <StudentDashboardContent
-      latestQuizScore={latestAttempt?.score ?? null}
-      overallNote={scoreToNoteOn20(scoreAggregate._avg.score)}
+      latestAttempt={latestAttempt}
+      overall={{
+        zMean: overallStats?.zMean ?? null,
+        finalNoteOn20: overallStats?.noteOn20 ?? scoreToNoteOn20(overallStats?.zMean),
+      }}
+      history={recentAttempts
+        .filter((attempt) => attempt.zScore != null && attempt.noteOn20 != null)
+        .map((attempt) => ({
+          weekKey: attempt.quiz.weekKey,
+          slot: attempt.quiz.slot,
+          normalizedScore: attempt.normalizedScore,
+          zScore: attempt.zScore ?? 0,
+          noteOn20: attempt.noteOn20 ?? 0,
+        }))}
       concepts={concepts}
       sort={sort}
       filter={filter}
