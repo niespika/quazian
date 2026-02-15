@@ -7,14 +7,22 @@ type Session = { userId: string } | null;
 
 type QuizQuestionRecord = { id: string; conceptId: string; correctIndex: number };
 
+type QuizRecord = {
+  classId: string;
+  weekKey: string;
+  slot: string;
+  questions: QuizQuestionRecord[];
+};
+
 type SubmitPayload = {
   quizId: string;
   answers: {
     questionId: string;
-    conceptId: string;
     distribution: number[];
   }[];
 };
+
+const DEFAULT_MASTERY = 0.5;
 
 function isValidDistribution(distribution: number[]) {
   if (!Array.isArray(distribution) || distribution.length !== 4) {
@@ -41,6 +49,10 @@ function scoreDistribution(distribution: number[], correctIndex: number) {
   return 1 - squaredError;
 }
 
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
 export async function buildQuizSubmitResponse(
   req: Request,
   session: Session,
@@ -56,6 +68,8 @@ export async function buildQuizSubmitResponse(
         where: { id: quizId },
         select: {
           classId: true,
+          weekKey: true,
+          slot: true,
           questions: {
             select: {
               id: true,
@@ -66,13 +80,63 @@ export async function buildQuizSubmitResponse(
         },
       });
     },
-    createAttempt: async (userId: string, quizId: string, score: number) => {
-      return prisma.attempt.create({
-        data: {
-          userId,
-          quizId,
-          score,
+    findAttempt: async (userId: string, quizId: string) => {
+      return prisma.attempt.findUnique({
+        where: {
+          userId_quizId: { userId, quizId },
         },
+        select: { id: true },
+      });
+    },
+    persistSubmission: async (
+      userId: string,
+      quizId: string,
+      normalizedScore: number,
+      conceptProbabilities: Map<string, number>,
+    ) => {
+      return prisma.$transaction(async (tx) => {
+        await tx.attempt.create({
+          data: {
+            userId,
+            quizId,
+            score: normalizedScore,
+          },
+        });
+
+        const conceptIds = [...conceptProbabilities.keys()];
+        const existingMastery = await tx.conceptMastery.findMany({
+          where: {
+            userId,
+            conceptId: { in: conceptIds },
+          },
+          select: { conceptId: true, pMastery: true },
+        });
+        const existingMasteryMap = new Map(existingMastery.map((item) => [item.conceptId, item.pMastery]));
+
+        await Promise.all(
+          conceptIds.map(async (conceptId) => {
+            const pCorrect = conceptProbabilities.get(conceptId) ?? 0;
+            const oldMastery = existingMasteryMap.get(conceptId) ?? DEFAULT_MASTERY;
+            const nextMastery = clamp(0.9 * oldMastery + 0.1 * pCorrect, 0, 1);
+
+            return tx.conceptMastery.upsert({
+              where: {
+                userId_conceptId: {
+                  userId,
+                  conceptId,
+                },
+              },
+              create: {
+                userId,
+                conceptId,
+                pMastery: nextMastery,
+              },
+              update: {
+                pMastery: nextMastery,
+              },
+            });
+          }),
+        );
       });
     },
   },
@@ -91,12 +155,17 @@ export async function buildQuizSubmitResponse(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const quiz = await deps.findQuiz(payload.quizId);
+  const quiz = (await deps.findQuiz(payload.quizId)) as QuizRecord | null;
   if (!quiz || quiz.classId !== studentProfile.classId) {
     return NextResponse.json({ error: "Quiz not found." }, { status: 404 });
   }
 
-  const questions = quiz.questions as QuizQuestionRecord[];
+  const existingAttempt = await deps.findAttempt(session.userId, payload.quizId);
+  if (existingAttempt) {
+    return NextResponse.json({ error: "Quiz has already been submitted." }, { status: 409 });
+  }
+
+  const questions = quiz.questions;
   const questionMap = new Map(questions.map((question) => [question.id, question]));
 
   if (payload.answers.length !== questions.length) {
@@ -105,6 +174,7 @@ export async function buildQuizSubmitResponse(
 
   const seenQuestionIds = new Set<string>();
   const perQuestion = [] as { questionId: string; score: number; correctIndex: number }[];
+  const conceptProbabilities = new Map<string, number[]>();
 
   for (const answer of payload.answers) {
     if (seenQuestionIds.has(answer.questionId)) {
@@ -112,7 +182,7 @@ export async function buildQuizSubmitResponse(
     }
 
     const question = questionMap.get(answer.questionId);
-    if (!question || answer.conceptId !== question.conceptId) {
+    if (!question) {
       return NextResponse.json({ error: "Answer does not match quiz questions." }, { status: 400 });
     }
 
@@ -121,6 +191,10 @@ export async function buildQuizSubmitResponse(
     }
 
     const questionScore = scoreDistribution(answer.distribution, question.correctIndex);
+    const pCorrect = answer.distribution[question.correctIndex] / 100;
+    const conceptScores = conceptProbabilities.get(question.conceptId) ?? [];
+    conceptScores.push(pCorrect);
+    conceptProbabilities.set(question.conceptId, conceptScores);
 
     perQuestion.push({
       questionId: question.id,
@@ -130,10 +204,31 @@ export async function buildQuizSubmitResponse(
     seenQuestionIds.add(answer.questionId);
   }
 
-  const totalScore = perQuestion.reduce((sum, item) => sum + item.score, 0) / perQuestion.length;
-  await deps.createAttempt(session.userId, payload.quizId, totalScore);
+  const totalScoreRaw = perQuestion.reduce((sum, item) => sum + item.score, 0);
+  const totalScoreNormalized = (totalScoreRaw / perQuestion.length) * 4;
 
-  return NextResponse.json({ totalScore, perQuestion });
+  const averagedConceptProbabilities = new Map(
+    [...conceptProbabilities.entries()].map(([conceptId, probabilities]) => {
+      const meanProbability = probabilities.reduce((sum, value) => sum + value, 0) / probabilities.length;
+      return [conceptId, meanProbability];
+    }),
+  );
+
+  try {
+    await deps.persistSubmission(session.userId, payload.quizId, totalScoreNormalized, averagedConceptProbabilities);
+  } catch (error) {
+    if (typeof error === "object" && error && "code" in error && (error as { code?: string }).code === "P2002") {
+      return NextResponse.json({ error: "Quiz has already been submitted." }, { status: 409 });
+    }
+
+    throw error;
+  }
+
+  return NextResponse.json({
+    totalScoreRaw,
+    totalScoreNormalized,
+    perQuestion,
+  });
 }
 
 export async function POST(req: Request) {

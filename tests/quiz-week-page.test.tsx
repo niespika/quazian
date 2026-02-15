@@ -49,7 +49,8 @@ test("after successful submit inputs are disabled and feedback is shown", () => 
     <QuizWeekClient
       quiz={quiz}
       initialFeedback={{
-        totalScore: 0.8123,
+        totalScoreRaw: 0.40615,
+        totalScoreNormalized: 0.8123,
         perQuestion: [{ questionId: "q-1", score: 0.8123, correctIndex: 2 }],
       }}
     />,
