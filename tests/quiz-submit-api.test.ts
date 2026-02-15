@@ -79,8 +79,9 @@ test("POST /api/quiz/submit returns scores and persists attempt for valid payloa
   const body = await response.json();
   assert.equal(body.perQuestion.length, 2);
   assert.equal(body.perQuestion[0].correctIndex, 2);
-  assert.equal(typeof body.perQuestion[0].score, "number");
-  assert.equal(typeof body.totalScore, "number");
+  assert.ok(Math.abs(body.perQuestion[0].score - 0.88) < 1e-9);
+  assert.ok(Math.abs(body.perQuestion[1].score - 1) < 1e-9);
+  assert.ok(Math.abs(body.totalScore - 0.94) < 1e-9);
   assert.deepEqual(persisted, {
     userId: "student-1",
     quizId: "quiz-1",

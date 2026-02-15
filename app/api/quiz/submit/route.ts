@@ -21,13 +21,14 @@ function isValidDistribution(distribution: number[]) {
     return false;
   }
 
-  const values = distribution.map((value) => Math.round(value));
-  const allInRange = values.every((value) => Number.isFinite(value) && value >= 0 && value <= 100);
-  if (!allInRange) {
+  const allIntegersInRange = distribution.every(
+    (value) => Number.isFinite(value) && Number.isInteger(value) && value >= 0 && value <= 100,
+  );
+  if (!allIntegersInRange) {
     return false;
   }
 
-  return values.reduce((sum, value) => sum + value, 0) === 100;
+  return distribution.reduce((sum, value) => sum + value, 0) === 100;
 }
 
 function scoreDistribution(distribution: number[], correctIndex: number) {
@@ -119,8 +120,7 @@ export async function buildQuizSubmitResponse(
       return NextResponse.json({ error: "Each distribution must contain four integers summing to 100." }, { status: 400 });
     }
 
-    const roundedDistribution = answer.distribution.map((value) => Math.round(value));
-    const questionScore = scoreDistribution(roundedDistribution, question.correctIndex);
+    const questionScore = scoreDistribution(answer.distribution, question.correctIndex);
 
     perQuestion.push({
       questionId: question.id,

@@ -8,11 +8,11 @@ type QuizQuestion = {
   conceptId: string;
   subject: string;
   title: string;
-  options: string[];
+  optionsJson: string[];
 };
 
 type QuizPayload = {
-  id: string;
+  quizId: string;
   weekKey: string;
   slot: string;
   questions: QuizQuestion[];
@@ -32,9 +32,10 @@ type SubmitResponse = {
 type QuizWeekClientProps = {
   quiz: QuizPayload;
   initialDistributions?: Distribution[];
+  initialFeedback?: SubmitResponse | null;
 };
 
-function buildInitialDistributions(questionCount: number, initialDistributions?: Distribution[]) {
+export function buildInitialDistributions(questionCount: number, initialDistributions?: Distribution[]) {
   if (initialDistributions && initialDistributions.length === questionCount) {
     return initialDistributions;
   }
@@ -42,15 +43,30 @@ function buildInitialDistributions(questionCount: number, initialDistributions?:
   return Array.from({ length: questionCount }, () => [25, 25, 25, 25] as Distribution);
 }
 
-export function QuizWeekClient({ quiz, initialDistributions }: QuizWeekClientProps) {
+export function updateQuestionDistribution(
+  current: Distribution[],
+  questionIndex: number,
+  optionIndex: number,
+  nextValue: number,
+) {
+  const next = [...current];
+  next[questionIndex] = updateDistribution(current[questionIndex], optionIndex, nextValue);
+  return next;
+}
+
+export function canSubmitQuiz(distributions: Distribution[]) {
+  return distributions.every((distribution) => isSum100(distribution));
+}
+
+export function QuizWeekClient({ quiz, initialDistributions, initialFeedback = null }: QuizWeekClientProps) {
   const [distributions, setDistributions] = useState<Distribution[]>(
     buildInitialDistributions(quiz.questions.length, initialDistributions),
   );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState<SubmitResponse | null>(null);
+  const [feedback, setFeedback] = useState<SubmitResponse | null>(initialFeedback);
 
-  const allSumsValid = useMemo(() => distributions.every((distribution) => isSum100(distribution)), [distributions]);
+  const allSumsValid = useMemo(() => canSubmitQuiz(distributions), [distributions]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -72,7 +88,7 @@ export function QuizWeekClient({ quiz, initialDistributions }: QuizWeekClientPro
       const response = await fetch("/api/quiz/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ quizId: quiz.id, answers }),
+        body: JSON.stringify({ quizId: quiz.quizId, answers }),
       });
 
       const body = await response.json();
@@ -110,15 +126,14 @@ export function QuizWeekClient({ quiz, initialDistributions }: QuizWeekClientPro
               <p className="mt-1 font-medium">{question.title}</p>
 
               <div className="mt-4 grid gap-3">
-                {question.options.map((option, optionIndex) => {
+                {question.optionsJson.slice(0, 4).map((option, optionIndex) => {
                   const isCorrect = questionFeedback?.correctIndex === optionIndex;
                   const percent = distribution[optionIndex];
 
                   return (
                     <label key={optionIndex} className="grid gap-1 text-sm text-gray-800">
-                      <span>
-                        {String.fromCharCode(65 + optionIndex)}. {option}{" "}
-                        {isCorrect ? <span className="font-semibold text-green-700">(Correct)</span> : null}
+                      <span className={isCorrect ? "font-semibold text-green-700" : undefined}>
+                        {String.fromCharCode(65 + optionIndex)}. {option} {isCorrect ? "(Correct)" : null}
                       </span>
                       <input
                         aria-label={`${question.title}-option-${optionIndex}`}
@@ -129,11 +144,9 @@ export function QuizWeekClient({ quiz, initialDistributions }: QuizWeekClientPro
                         disabled={Boolean(feedback) || submitting}
                         onChange={(event) => {
                           const nextValue = Number.parseInt(event.target.value, 10);
-                          setDistributions((current) => {
-                            const next = [...current];
-                            next[questionIndex] = updateDistribution(current[questionIndex], optionIndex, nextValue);
-                            return next;
-                          });
+                          setDistributions((current) =>
+                            updateQuestionDistribution(current, questionIndex, optionIndex, nextValue),
+                          );
                         }}
                         className="w-24 rounded border border-gray-300 px-2 py-1"
                       />
@@ -147,9 +160,7 @@ export function QuizWeekClient({ quiz, initialDistributions }: QuizWeekClientPro
 
               <p className={`mt-3 text-sm font-semibold ${sum === 100 ? "text-green-700" : "text-red-600"}`}>Sum: {sum}%</p>
 
-              {questionFeedback ? (
-                <p className="mt-2 text-sm text-gray-700">Score: {questionFeedback.score.toFixed(3)}</p>
-              ) : null}
+              {questionFeedback ? <p className="mt-2 text-sm text-gray-700">Score: {questionFeedback.score.toFixed(3)}</p> : null}
             </section>
           );
         })}
@@ -161,7 +172,7 @@ export function QuizWeekClient({ quiz, initialDistributions }: QuizWeekClientPro
         ) : (
           <button
             type="submit"
-            disabled={submitting}
+            disabled={submitting || !allSumsValid}
             className="rounded bg-black px-4 py-2 text-white disabled:cursor-not-allowed disabled:bg-gray-400"
           >
             {submitting ? "Submitting..." : "Submit quiz"}
