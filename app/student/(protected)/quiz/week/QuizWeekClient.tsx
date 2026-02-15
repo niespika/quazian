@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { isSum100, updateDistribution, type Distribution } from "@/lib/probability";
+import { submitQuizAttempt, type QuizSubmitResponse } from "@/lib/quiz-submit-client";
 
 type QuizQuestion = {
   id: string;
@@ -18,22 +19,10 @@ type QuizPayload = {
   questions: QuizQuestion[];
 };
 
-type QuestionFeedback = {
-  questionId: string;
-  score: number;
-  correctIndex: number;
-};
-
-type SubmitResponse = {
-  totalScoreRaw: number;
-  totalScoreNormalized: number;
-  perQuestion: QuestionFeedback[];
-};
-
 type QuizWeekClientProps = {
   quiz: QuizPayload;
   initialDistributions?: Distribution[];
-  initialFeedback?: SubmitResponse | null;
+  initialFeedback?: QuizSubmitResponse | null;
 };
 
 export function buildInitialDistributions(questionCount: number, initialDistributions?: Distribution[]) {
@@ -65,7 +54,7 @@ export function QuizWeekClient({ quiz, initialDistributions, initialFeedback = n
   );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState<SubmitResponse | null>(initialFeedback);
+  const [feedback, setFeedback] = useState<QuizSubmitResponse | null>(initialFeedback);
 
   const allSumsValid = useMemo(() => canSubmitQuiz(distributions), [distributions]);
 
@@ -81,26 +70,14 @@ export function QuizWeekClient({ quiz, initialDistributions, initialFeedback = n
 
     const answers = quiz.questions.map((question, index) => ({
       questionId: question.id,
-      conceptId: question.conceptId,
       distribution: distributions[index],
     }));
 
     try {
-      const response = await fetch("/api/quiz/submit", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ quizId: quiz.quizId, answers }),
-      });
-
-      const body = await response.json();
-      if (!response.ok) {
-        setError(typeof body.error === "string" ? body.error : "Unable to submit quiz.");
-        return;
-      }
-
-      setFeedback(body as SubmitResponse);
-    } catch {
-      setError("Unable to submit quiz.");
+      const body = await submitQuizAttempt({ quizId: quiz.quizId, answers });
+      setFeedback(body);
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Unable to submit quiz.");
     } finally {
       setSubmitting(false);
     }
