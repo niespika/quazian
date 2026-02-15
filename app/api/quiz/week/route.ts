@@ -38,7 +38,6 @@ export async function GET() {
           subject: true,
           title: true,
           optionsJson: true,
-          correctIndex: true,
         },
       },
     },
@@ -50,12 +49,15 @@ export async function GET() {
 
   return NextResponse.json({
     id: quiz.id,
-    classId: quiz.classId,
     weekKey: quiz.weekKey,
     slot: quiz.slot,
     createdAt: quiz.createdAt.toISOString(),
     questions: quiz.questions.map((question) => ({
-      ...question,
+      id: question.id,
+      conceptId: question.conceptId,
+      order: question.order,
+      subject: question.subject,
+      title: question.title,
       options: JSON.parse(question.optionsJson) as string[],
     })),
   });
