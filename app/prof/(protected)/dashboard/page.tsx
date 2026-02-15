@@ -7,6 +7,7 @@ import {
   normalizeProfessorDashboardSort,
   resolveProfessorDashboardClassId,
 } from "@/lib/prof-dashboard";
+import { getWeekStartFromDate } from "@/lib/stats";
 
 type DashboardPageProps = {
   searchParams: Promise<{
@@ -51,8 +52,9 @@ export default async function ProfessorDashboardPage({ searchParams }: Dashboard
     notFound();
   }
   const selectedClassId = classSelection.classId;
+  const weekStart = getWeekStartFromDate(new Date());
 
-  const [students, attempts, studentStats, concepts, masteries] = await Promise.all([
+  const [students, attempts, weeklyStats, concepts, masteries] = await Promise.all([
     prisma.studentProfile.findMany({
       where: { classId: selectedClassId },
       orderBy: { name: "asc" },
@@ -66,18 +68,18 @@ export default async function ProfessorDashboardPage({ searchParams }: Dashboard
       where: { quiz: { classId: selectedClassId } },
       select: {
         userId: true,
-        quizId: true,
-        normalizedScore: true,
+        score: true,
         zScore: true,
         createdAt: true,
       },
     }),
-    prisma.studentStats.findMany({
-      where: { classId: selectedClassId },
+    prisma.studentWeeklyStats.findMany({
+      where: { classId: selectedClassId, weekStart },
       select: {
-        userId: true,
-        zMean: true,
-        noteOn20: true,
+        studentId: true,
+        attemptsCount: true,
+        meanScore: true,
+        zScore: true,
       },
     }),
     prisma.classConcept.findMany({
@@ -112,7 +114,7 @@ export default async function ProfessorDashboardPage({ searchParams }: Dashboard
       email: student.user.email,
     })),
     attempts,
-    studentStats,
+    weeklyStats,
     concepts: concepts.map((assignment) => assignment.concept),
     masteries,
     sort,
@@ -154,8 +156,10 @@ export default async function ProfessorDashboardPage({ searchParams }: Dashboard
             <tr className="border-b">
               <th className="p-2 text-left">Student</th>
               <th className="p-2 text-left">Last attempt</th>
-              <th className="p-2 text-left">Last normalized</th>
+              <th className="p-2 text-left">Last score</th>
               <th className="p-2 text-left">Last zScore</th>
+              <th className="p-2 text-left">Weekly attempts</th>
+              <th className="p-2 text-left">Weekly mean score</th>
               <th className="p-2 text-left">zMean</th>
               <th className="p-2 text-left">Final note (/20)</th>
               <th className="p-2 text-left">Mastery summary</th>
@@ -169,8 +173,10 @@ export default async function ProfessorDashboardPage({ searchParams }: Dashboard
                   <p className="text-xs text-gray-500">{row.email}</p>
                 </td>
                 <td className="p-2">{fmtDate(row.lastAttemptDate)}</td>
-                <td className="p-2">{fmtNumber(row.lastNormalizedScore)}</td>
+                <td className="p-2">{fmtNumber(row.lastScore)}</td>
                 <td className="p-2">{fmtNumber(row.lastZScore)}</td>
+                <td className="p-2">{row.weeklyAttemptsCount}</td>
+                <td className="p-2">{fmtNumber(row.weeklyMeanScore)}</td>
                 <td className="p-2">{fmtNumber(row.zMean)}</td>
                 <td className="p-2">{fmtNumber(row.finalNoteOn20)}</td>
                 <td className="p-2">

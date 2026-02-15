@@ -28,7 +28,7 @@ function formatPercent(probability: number) {
 
 type StudentDashboardContentProps = {
   latestAttempt: {
-    normalizedScore: number | null;
+    score: number | null;
     zScore: number | null;
     noteOn20: number | null;
   } | null;
@@ -39,7 +39,7 @@ type StudentDashboardContentProps = {
   history: {
     weekKey: string;
     slot: string;
-    normalizedScore: number;
+    score: number;
     zScore: number;
     noteOn20: number;
   }[];
@@ -95,7 +95,7 @@ export function StudentDashboardContent({
       <section className="grid gap-4 sm:grid-cols-2">
         <article className="rounded-lg border border-gray-200 p-4">
           <p className="text-xs font-semibold uppercase text-gray-500">Latest quiz</p>
-          <p className="mt-2 text-sm text-gray-600">Normalized score: {formatScore(latestAttempt?.normalizedScore ?? null)}</p>
+          <p className="mt-2 text-sm text-gray-600">Score: {formatScore(latestAttempt?.score ?? null)}</p>
           <p className="mt-1 text-sm text-gray-600">z-score: {formatScore(latestAttempt?.zScore ?? null)}</p>
           <p className="mt-1 text-2xl font-bold">{formatScore(latestAttempt?.noteOn20 ?? null)} /20</p>
         </article>
@@ -115,7 +115,7 @@ export function StudentDashboardContent({
           <ul className="mt-3 space-y-2 text-sm text-gray-700">
             {history.map((entry) => (
               <li key={`${entry.weekKey}-${entry.slot}`} className="rounded border border-gray-200 px-3 py-2">
-                {entry.weekKey} / {entry.slot} — score {formatScore(entry.normalizedScore)}, z {formatScore(entry.zScore)},
+                {entry.weekKey} / {entry.slot} — score {formatScore(entry.score)}, z {formatScore(entry.zScore)},
                 note {formatScore(entry.noteOn20)}/20
               </li>
             ))}
@@ -190,7 +190,7 @@ export default async function StudentDashboardPage({ searchParams }: StudentDash
     prisma.attempt.findFirst({
       where: { userId: session.userId },
       orderBy: { createdAt: "desc" },
-      select: { normalizedScore: true, zScore: true, noteOn20: true },
+      select: { score: true, zScore: true, noteOn20: true },
     }),
     prisma.studentStats.findUnique({
       where: {
@@ -206,7 +206,7 @@ export default async function StudentDashboardPage({ searchParams }: StudentDash
       orderBy: { createdAt: "desc" },
       take: 8,
       select: {
-        normalizedScore: true,
+        score: true,
         zScore: true,
         noteOn20: true,
         quiz: {
@@ -250,7 +250,7 @@ export default async function StudentDashboardPage({ searchParams }: StudentDash
         .map((attempt) => ({
           weekKey: attempt.quiz.weekKey,
           slot: attempt.quiz.slot,
-          normalizedScore: attempt.normalizedScore,
+          score: attempt.score,
           zScore: attempt.zScore ?? 0,
           noteOn20: attempt.noteOn20 ?? 0,
         }))}

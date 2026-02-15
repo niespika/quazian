@@ -24,6 +24,7 @@ model User {
   sessions         Session[]
   conceptMasteries ConceptMastery[]
   studentStats     StudentStats[]
+  weeklyStats      StudentWeeklyStats[]
 }
 
 model Session {
@@ -64,6 +65,7 @@ model Class {
   quizzes  Quiz[]
   conceptAssignments ClassConcept[]
   studentStats StudentStats[]
+  weeklyStats  StudentWeeklyStats[]
 }
 
 model Concept {
@@ -141,7 +143,6 @@ model Attempt {
   quiz      Quiz     @relation(fields: [quizId], references: [id])
   quizId    String
   score     Float
-  normalizedScore Float
   zScore    Float?
   noteOn20  Float?
   createdAt DateTime @default(now())
@@ -160,6 +161,23 @@ model StudentStats {
   updatedAt   DateTime @updatedAt
 
   @@unique([userId, classId])
+}
+
+model StudentWeeklyStats {
+  id            String   @id @default(uuid())
+  weekStart     DateTime
+  class         Class    @relation(fields: [classId], references: [id], onDelete: Cascade)
+  classId       String
+  student       User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId     String
+  attemptsCount Int
+  meanScore     Float?
+  zScore        Float?
+  updatedAt     DateTime @updatedAt
+
+  @@unique([weekStart, classId, studentId])
+  @@index([classId, weekStart])
+  @@index([studentId, weekStart])
 }
 
 enum Role {

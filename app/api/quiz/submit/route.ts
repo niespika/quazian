@@ -3,6 +3,7 @@ import { Role } from "@prisma/client";
 import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { computeQuizAttemptZScores, zMeanToNoteOn20 } from "@/lib/class-relative-grading";
+import { getWeekStartFromIsoWeekKey, recomputeWeeklyStatsForClass } from "@/lib/stats";
 
 type Session = { userId: string } | null;
 
@@ -102,7 +103,6 @@ export async function buildQuizSubmitResponse(
             userId,
             quizId,
             score: normalizedScore,
-            normalizedScore,
           },
         });
 
@@ -110,11 +110,13 @@ export async function buildQuizSubmitResponse(
           where: { quizId },
           select: {
             id: true,
-            normalizedScore: true,
+            score: true,
           },
         });
 
-        const quizAttemptGrades = computeQuizAttemptZScores(quizAttempts);
+        const quizAttemptGrades = computeQuizAttemptZScores(
+          quizAttempts.map((attempt) => ({ id: attempt.id, normalizedScore: attempt.score })),
+        );
         await Promise.all(
           quizAttemptGrades.map((attempt) =>
             tx.attempt.update({
@@ -280,6 +282,18 @@ export async function buildQuizSubmitResponse(
       totalScoreNormalized,
       averagedConceptProbabilities,
     );
+
+    // Weekly aggregates are best-effort and must not block quiz submissions.
+    recomputeWeeklyStatsForClass({
+      classId: quiz.classId,
+      weekStart: getWeekStartFromIsoWeekKey(quiz.weekKey),
+    }).catch((error) => {
+      console.error("Failed to recompute weekly stats", {
+        classId: quiz.classId,
+        weekKey: quiz.weekKey,
+        error,
+      });
+    });
   } catch (error) {
     if (typeof error === "object" && error && "code" in error && (error as { code?: string }).code === "P2002") {
       return NextResponse.json({ error: "Quiz has already been submitted." }, { status: 409 });

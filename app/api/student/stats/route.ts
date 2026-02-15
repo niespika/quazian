@@ -37,7 +37,7 @@ export async function GET() {
       take: 8,
       select: {
         createdAt: true,
-        normalizedScore: true,
+        score: true,
         zScore: true,
         noteOn20: true,
         quiz: {
@@ -57,7 +57,7 @@ export async function GET() {
       createdAt: attempt.createdAt,
       weekKey: attempt.quiz.weekKey,
       slot: attempt.quiz.slot,
-      score: attempt.normalizedScore,
+      score: attempt.score,
       z: attempt.zScore,
       noteOn20: attempt.noteOn20,
     })),
