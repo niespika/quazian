@@ -17,8 +17,8 @@ test("submitQuizAttempt posts a valid quiz payload to /api/quiz/submit and retur
       calls.push({ url: String(url), init });
       return new Response(
         JSON.stringify({
-          totalScoreRaw: 1.9,
-          totalScoreNormalized: 3.8,
+          meanScore: 0.95,
+          score01: 0.975,
           perQuestion: [
             { questionId: "q-1", score: 0.9, correctIndex: 0 },
             { questionId: "q-2", score: 1, correctIndex: 2 },
@@ -43,7 +43,8 @@ test("submitQuizAttempt posts a valid quiz payload to /api/quiz/submit and retur
     ],
   });
 
-  assert.equal(response.totalScoreNormalized, 3.8);
+  assert.equal(response.meanScore, 0.95);
+  assert.equal(response.score01, 0.975);
   assert.equal(response.perQuestion.length, 2);
 });
 

@@ -15,8 +15,8 @@ export type QuizQuestionFeedback = {
 };
 
 export type QuizSubmitResponse = {
-  totalScoreRaw: number;
-  totalScoreNormalized: number;
+  meanScore: number;
+  score01: number;
   perQuestion: QuizQuestionFeedback[];
 };
 
