@@ -116,12 +116,13 @@ test("POST /api/quiz/submit blocks duplicate submissions and keeps a single atte
 
   assert.equal(attempts.length, 1);
 });
-test("POST /api/quiz/submit returns raw + normalized scores and persists mastery input", async () => {
+test("POST /api/quiz/submit returns mean + score01 and persists mastery input", async () => {
   let persisted:
     | {
         userId: string;
         quizId: string;
-        normalizedScore: number;
+        meanScore: number;
+        score01: number;
         conceptProbabilities: Map<string, number>;
       }
     | null = null;
@@ -141,8 +142,8 @@ test("POST /api/quiz/submit returns raw + normalized scores and persists mastery
     findStudentClass: async () => ({ classId: "class-1" }),
     findQuiz: async () => baseQuiz,
     findAttempt: async () => null,
-    persistSubmission: async (userId, quizId, _classId, normalizedScore, conceptProbabilities) => {
-      persisted = { userId, quizId, normalizedScore, conceptProbabilities };
+    persistSubmission: async (userId, quizId, _classId, meanScore, score01, conceptProbabilities) => {
+      persisted = { userId, quizId, meanScore, score01, conceptProbabilities };
     },
   });
 
@@ -152,13 +153,14 @@ test("POST /api/quiz/submit returns raw + normalized scores and persists mastery
   assert.equal(body.perQuestion[0].correctIndex, 2);
   assert.ok(Math.abs(body.perQuestion[0].score - 0.88) < 1e-9);
   assert.ok(Math.abs(body.perQuestion[1].score - 1) < 1e-9);
-  assert.ok(Math.abs(body.totalScoreRaw - 1.88) < 1e-9);
-  assert.ok(Math.abs(body.totalScoreNormalized - 3.76) < 1e-9);
-  assert.equal(body.totalScoreNormalized <= 4, true);
+  assert.ok(Math.abs(body.meanScore - 0.94) < 1e-9);
+  assert.ok(Math.abs(body.score01 - 0.97) < 1e-9);
+  assert.equal(body.score01 <= 1, true);
 
   assert.equal(persisted?.userId, "student-1");
   assert.equal(persisted?.quizId, "quiz-1");
-  assert.ok(Math.abs((persisted?.normalizedScore ?? 0) - body.totalScoreNormalized) < 1e-9);
+  assert.ok(Math.abs((persisted?.meanScore ?? 0) - body.meanScore) < 1e-9);
+  assert.ok(Math.abs((persisted?.score01 ?? 0) - body.score01) < 1e-9);
   assert.ok(Math.abs((persisted?.conceptProbabilities.get("c-1") ?? 0) - 0.7) < 1e-9);
   assert.ok(Math.abs((persisted?.conceptProbabilities.get("c-2") ?? 0) - 1) < 1e-9);
 });

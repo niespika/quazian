@@ -49,8 +49,8 @@ test("after successful submit inputs are disabled and feedback is shown", () => 
     <QuizWeekClient
       quiz={quiz}
       initialFeedback={{
-        totalScoreRaw: 0.40615,
-        totalScoreNormalized: 0.8123,
+        meanScore: 0.8123,
+        score01: 0.90615,
         perQuestion: [{ questionId: "q-1", score: 0.8123, correctIndex: 2 }],
       }}
     />,
@@ -59,5 +59,5 @@ test("after successful submit inputs are disabled and feedback is shown", () => 
   assert.match(html, /disabled/);
   assert.match(html, /Correct/);
   assert.match(html, /Score: 0.812/);
-  assert.match(html, /Total score: 0.812/);
+  assert.match(html, /Mean score: 0.812 \(normalized: 0.906\)/);
 });

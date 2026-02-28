@@ -94,6 +94,7 @@ export async function buildQuizSubmitResponse(
       userId: string,
       quizId: string,
       classId: string,
+      meanScore: number,
       normalizedScore: number,
       conceptProbabilities: Map<string, number>,
     ) => {
@@ -102,7 +103,8 @@ export async function buildQuizSubmitResponse(
           data: {
             userId,
             quizId,
-            score: normalizedScore,
+            score: meanScore,
+            normalizedScore,
           },
         });
 
@@ -110,12 +112,12 @@ export async function buildQuizSubmitResponse(
           where: { quizId },
           select: {
             id: true,
-            score: true,
+            normalizedScore: true,
           },
         });
 
         const quizAttemptGrades = computeQuizAttemptZScores(
-          quizAttempts.map((attempt) => ({ id: attempt.id, normalizedScore: attempt.score })),
+          quizAttempts.map((attempt) => ({ id: attempt.id, normalizedScore: attempt.normalizedScore })),
         );
         await Promise.all(
           quizAttemptGrades.map((attempt) =>
@@ -264,8 +266,9 @@ export async function buildQuizSubmitResponse(
     seenQuestionIds.add(answer.questionId);
   }
 
-  const totalScoreRaw = perQuestion.reduce((sum, item) => sum + item.score, 0);
-  const totalScoreNormalized = (totalScoreRaw / perQuestion.length) * 4;
+  // meanScore is in [-1, 1]; normalizedScore (score01) maps it into [0, 1].
+  const meanScore = perQuestion.reduce((sum, item) => sum + item.score, 0) / perQuestion.length;
+  const score01 = (meanScore + 1) / 2;
 
   const averagedConceptProbabilities = new Map(
     [...conceptProbabilities.entries()].map(([conceptId, probabilities]) => {
@@ -279,7 +282,8 @@ export async function buildQuizSubmitResponse(
       session.userId,
       payload.quizId,
       quiz.classId,
-      totalScoreNormalized,
+      meanScore,
+      score01,
       averagedConceptProbabilities,
     );
 
@@ -303,8 +307,8 @@ export async function buildQuizSubmitResponse(
   }
 
   return NextResponse.json({
-    totalScoreRaw,
-    totalScoreNormalized,
+    meanScore,
+    score01,
     perQuestion,
   });
 }
